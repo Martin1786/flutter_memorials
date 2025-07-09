@@ -143,7 +143,7 @@ class _HomePageState extends State<HomePage> {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: [
+        children: <Widget>[
           const Icon(
             Icons.error_outline,
             size: 64,
@@ -177,8 +177,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: const Column(
+    return const Center(
+      child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
           Icon(
@@ -282,13 +282,13 @@ class _HomePageState extends State<HomePage> {
         title: const Text('Add Memorial'),
         content: const Text('Add memorial functionality coming soon...'),
         actions: [
-          const TextButton(
-            onPressed: null, // Will be replaced below
-            child: Text('Cancel'),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
           ),
-          const ElevatedButton(
-            onPressed: null, // Will be replaced below
-            child: Text('Add'),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Add'),
           ),
         ],
       ),
@@ -299,7 +299,7 @@ class _HomePageState extends State<HomePage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Memorial Details'),
+        title: const Text('Memorial Details'),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

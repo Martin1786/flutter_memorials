@@ -104,7 +104,10 @@ class MemorialCardWidget extends StatelessWidget {
         const SizedBox(width: 8),
         Icon(
           Icons.arrow_forward_ios,
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+          color: Theme.of(context)
+              .colorScheme
+              .onSurface
+              .withAlpha((0.5 * 255).toInt()),
           size: 16,
         ),
       ],
@@ -163,7 +166,10 @@ class MemorialCardWidget extends StatelessWidget {
         Icon(
           icon,
           size: 16,
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+          color: Theme.of(context)
+              .colorScheme
+              .onSurface
+              .withAlpha((0.6 * 255).toInt()),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -178,7 +184,7 @@ class MemorialCardWidget extends StatelessWidget {
                     color: Theme.of(context)
                         .colorScheme
                         .onSurface
-                        .withOpacity(0.7),
+                        .withAlpha((0.7 * 255).toInt()),
                   ),
                 ),
                 TextSpan(

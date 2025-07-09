@@ -68,7 +68,7 @@ class AppTheme {
     ),
 
     // Card theme
-    cardTheme: CardThemeData(
+    cardTheme: const CardThemeData(
       elevation: AppConstants.cardElevation,
     ),
 
@@ -209,7 +209,7 @@ class AppTheme {
     ),
 
     // Card theme
-    cardTheme: CardThemeData(
+    cardTheme: const CardThemeData(
       elevation: AppConstants.cardElevation,
     ),
 
