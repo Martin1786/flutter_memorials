@@ -1,11 +1,11 @@
 {
-    "name": "flutter_memorials",
-    "short_name": "flutter_memorials",
+    "name": "Flutter Memorials",
+    "short_name": "Memorials",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#2E7D32",
+    "theme_color": "#2E7D32",
+    "description": "A Flutter app for managing churchyard memorials and burial records",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

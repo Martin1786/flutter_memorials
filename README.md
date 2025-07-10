@@ -90,7 +90,39 @@ flutter run
 
 # For Windows
 flutter run -d windows
+
+# For Web (local development)
+flutter run -d chrome
 ```
+
+### 4. Build for Web Deployment
+```bash
+# Using the custom build script
+chmod +x scripts/build_web.sh
+./scripts/build_web.sh
+
+# Or manually
+flutter build web --release --web-renderer canvaskit
+```
+
+## 🌐 Web Deployment
+
+### Live Demo
+The app is automatically deployed to GitHub Pages:
+**🌐 https://martin1786.github.io/flutter_memorials**
+
+### Deployment Features
+- **Automatic builds** on every push to master
+- **Optimized web renderer** (CanvasKit)
+- **Service worker** for offline functionality
+- **Progressive Web App** (PWA) support
+- **Custom loading indicator** and branding
+
+### Web-Specific Optimizations
+- **CanvasKit renderer** for better performance
+- **Custom service worker** for caching
+- **Optimized build size** with tree shaking
+- **Responsive design** for all screen sizes
 
 ## 📊 Data Model
 
