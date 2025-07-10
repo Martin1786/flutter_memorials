@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../../core/constants/app_constants.dart';
 import '../../domain/entities/memorial.dart';
 import '../widgets/memorial_card_widget.dart';

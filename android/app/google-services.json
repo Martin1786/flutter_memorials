@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "197148401217",
+    "project_id": "memorials-adc74",
+    "storage_bucket": "memorials-adc74.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:197148401217:android:23de2aef26d5c7a86a30c0",
+        "android_client_info": {
+          "package_name": "com.example.flutter_memorials"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyARL7aJYwUz5F9r21prJu6pGBccNeEZ_7o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
