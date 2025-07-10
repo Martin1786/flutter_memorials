@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/constants/app_constants.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -269,6 +270,25 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(AppConstants.appName),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              // TODO: Implement search functionality
+              showDialog(
+                context: context,
+                builder: (context) => const AlertDialog(
+                  title: Text('Search'),
+                  content: Text('Search functionality coming soon.'),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => _signOut(context),
+          ),
+        ],
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('sections').snapshots(),
@@ -343,5 +363,11 @@ class HomePage extends StatelessWidget {
         },
       ),
     );
+  }
+
+  void _signOut(BuildContext context) async {
+    await FirebaseAuth.instance.signOut();
+    // Optionally, navigate to login or show a message
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 }
