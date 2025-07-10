@@ -1,338 +1,257 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/constants/app_constants.dart';
-import '../../domain/entities/memorial.dart';
-import '../widgets/memorial_card_widget.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
-/// Home page of the memorials application.
-///
-/// This page displays the list of memorials and provides navigation
-/// to other parts of the application.
-class HomePage extends StatefulWidget {
+class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  List<Memorial> _memorials = [];
-  bool _isLoading = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSampleData();
-  }
-
-  void _loadSampleData() {
-    // Simulate loading
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _memorials = _getSampleMemorials();
-        });
-      }
-    });
-  }
-
-  List<Memorial> _getSampleMemorials() {
-    final now = DateTime.now();
-
-    return [
-      Memorial(
-        id: '1',
-        plotNumber: 'A-123',
-        section: BurialSection.A,
-        headstoneMaterial: HeadstoneMaterial.granite,
-        inscription: 'In loving memory of John Smith\n1920 - 1995',
-        dateOfDeath: DateTime(1995, 6, 15),
-        deceasedName: 'John Smith',
-        latitude: 51.5074,
-        longitude: -0.1278,
-        photoPath: null,
-        additionalDetails: ['Vase', 'Plaque'],
-        createdAt: now,
-        updatedAt: now,
-      ),
-      Memorial(
-        id: '2',
-        plotNumber: 'B-456',
-        section: BurialSection.B,
-        headstoneMaterial: HeadstoneMaterial.limestone,
-        inscription: 'Rest in peace\nMary Johnson\n1935 - 2000',
-        dateOfDeath: DateTime(2000, 3, 22),
-        deceasedName: 'Mary Johnson',
-        latitude: 51.5075,
-        longitude: -0.1279,
-        photoPath: null,
-        additionalDetails: ['Cross'],
-        createdAt: now,
-        updatedAt: now,
-      ),
-      Memorial(
-        id: '3',
-        plotNumber: 'C-789',
-        section: BurialSection.C,
-        headstoneMaterial: HeadstoneMaterial.slate,
-        inscription:
-            'Beloved father and grandfather\nRobert Brown\n1910 - 1988',
-        dateOfDeath: DateTime(1988, 12, 10),
-        deceasedName: 'Robert Brown',
-        latitude: 51.5076,
-        longitude: -0.1280,
-        photoPath: null,
-        additionalDetails: ['Angel statue'],
-        createdAt: now,
-        updatedAt: now,
-      ),
-    ];
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(AppConstants.appName),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              _showSearchDialog(context);
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.sync),
-            onPressed: () {
-              _showSyncDialog(context);
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sign Out',
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-            },
+  Future<Widget> _buildAbbreviationField(
+      BuildContext context, int abbreviationId) async {
+    final query = await FirebaseFirestore.instance
+        .collection('abbreviations')
+        .where('ID', isEqualTo: abbreviationId)
+        .limit(1)
+        .get();
+    if (query.docs.isNotEmpty) {
+      final data = query.docs.first.data();
+      final abbr = data['Abbreviation'] ?? '';
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Abbreviation: ',
+              style: TextStyle(fontWeight: FontWeight.bold)),
+          GestureDetector(
+            onTap: () => _showAbbreviationDialog(context, abbreviationId),
+            child: Text(
+              abbr,
+              style: const TextStyle(
+                fontStyle: FontStyle.italic,
+                decoration: TextDecoration.underline,
+                color: Colors.blue,
+              ),
+            ),
           ),
         ],
-      ),
-      body: _buildBody(),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          _showAddMemorialDialog(context);
-        },
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
-
-  Widget _buildBody() {
-    if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(),
+      );
+    } else {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Abbreviation: ',
+              style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text('Not found'),
+        ],
       );
     }
+  }
 
-    if (_error != null) {
-      return _buildErrorWidget(_error!);
+  void _showAbbreviationDialog(BuildContext context, int abbreviationId) async {
+    final query = await FirebaseFirestore.instance
+        .collection('abbreviations')
+        .where('ID', isEqualTo: abbreviationId)
+        .limit(1)
+        .get();
+    if (query.docs.isNotEmpty) {
+      final data = query.docs.first.data();
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(data['Abbreviation'] ?? 'Abbreviation'),
+          content: Text(data['Meaning'] ?? 'No meaning found.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Abbreviation'),
+          content: const Text('No meaning found for this abbreviation.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
     }
-
-    if (_memorials.isEmpty) {
-      return _buildEmptyState();
-    }
-
-    return _buildMemorialList();
   }
 
-  Widget _buildErrorWidget(String error) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          const Icon(
-            Icons.error_outline,
-            size: 64,
-            color: Colors.red,
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Error',
-            style: TextStyle(fontSize: 24),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            error,
-            style: Theme.of(context).textTheme.bodyMedium,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _isLoading = true;
-                _error = null;
-              });
-              _loadSampleData();
-            },
-            child: const Text('Retry'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          Icon(
-            Icons.church,
-            size: 64,
-            color: Colors.grey,
-          ),
-          SizedBox(height: 16),
-          Text(
-            'No Memorials Found',
-            style: TextStyle(fontSize: 24),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Add your first memorial to get started',
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: 16),
-          // Note: ElevatedButton cannot be const if it uses a closure
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMemorialList() {
-    // Sort by deceasedName (alphabetically, case-insensitive), then by dateOfDeath (earliest first)
-    final sortedMemorials = List<Memorial>.from(_memorials)
-      ..sort((a, b) {
-        final nameA = (a.deceasedName ?? '').toLowerCase();
-        final nameB = (b.deceasedName ?? '').toLowerCase();
-        final nameCompare = nameA.compareTo(nameB);
-        if (nameCompare != 0) return nameCompare;
-        if (a.dateOfDeath != null && b.dateOfDeath != null) {
-          return a.dateOfDeath!.compareTo(b.dateOfDeath!);
-        } else if (a.dateOfDeath != null) {
-          return -1;
-        } else if (b.dateOfDeath != null) {
-          return 1;
-        }
-        return 0;
-      });
-    return RefreshIndicator(
-      onRefresh: () async {
-        setState(() {
-          _isLoading = true;
-        });
-        _loadSampleData();
-      },
-      child: ListView.builder(
-        padding: const EdgeInsets.all(AppConstants.defaultPadding),
-        itemCount: sortedMemorials.length,
-        itemBuilder: (context, index) {
-          final memorial = sortedMemorials[index];
-          return MemorialCardWidget(
-            memorial: memorial,
-            onTap: () {
-              _showMemorialDetails(context, memorial);
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  void _showSearchDialog(BuildContext context) {
+  void _showDetailsDialog(BuildContext context, Map<String, dynamic> data) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Search Memorials'),
-        content: const Text('Search functionality coming soon...'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showSyncDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sync Data'),
-        content: const Text('Sync functionality coming soon...'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAddMemorialDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Memorial'),
-        content: const Text('Add memorial functionality coming soon...'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Add'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showMemorialDetails(BuildContext context, Memorial memorial) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Memorial Details'),
+        title: Text('${data['Forename'] ?? ''} ${data['Surname'] ?? ''}'),
         content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _detailRow('Name', memorial.deceasedName ?? 'Unknown'),
-              if (memorial.dateOfDeath != null)
-                _detailRow('Date of Death',
-                    '${memorial.dateOfDeath!.day}/${memorial.dateOfDeath!.month}/${memorial.dateOfDeath!.year}'),
-              _detailRow('Plot', memorial.plotNumber),
-              _detailRow('Section', memorial.section.displayName),
-              _detailRow('Material', memorial.headstoneMaterial.displayName),
-              if (memorial.inscription != null &&
-                  memorial.inscription!.isNotEmpty)
-                _detailRow('Inscription', memorial.inscription!),
-              if (memorial.latitude != null && memorial.longitude != null)
-                _detailRow('Coordinates',
-                    '${memorial.latitude}, ${memorial.longitude}'),
-              if (memorial.additionalDetails.isNotEmpty)
-                _detailRow('Additional Details',
-                    memorial.additionalDetails.join(", ")),
-              if (memorial.photoPath != null && memorial.photoPath!.isNotEmpty)
-                _detailRow('Photo Path', memorial.photoPath!),
-              _detailRow('Created At', memorial.createdAt.toString()),
-              _detailRow('Updated At', memorial.updatedAt.toString()),
-            ],
+          child: FutureBuilder<Widget?>(
+            future: () async {
+              List<Widget> fields = [];
+              Widget? abbreviationWidget;
+              Widget? xyWidget;
+              Widget? rowWidget;
+              // Move Date of Death to the top if present
+              if (data.containsKey('Date of Death') &&
+                  data['Date of Death'] != null) {
+                fields.add(Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Date of Death: ',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      Expanded(child: Text('${data['Date of Death']}')),
+                    ],
+                  ),
+                ));
+              }
+              // Add Forename and Surname in order
+              if (data.containsKey('Forename')) {
+                fields.add(Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Forename: ',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      Expanded(child: Text('${data['Forename'] ?? ''}')),
+                    ],
+                  ),
+                ));
+              }
+              if (data.containsKey('Surname')) {
+                fields.add(Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Surname: ',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      Expanded(child: Text('${data['Surname'] ?? ''}')),
+                    ],
+                  ),
+                ));
+              }
+              for (final entry in data.entries) {
+                if (entry.key == 'ID' ||
+                    entry.key == 'Old Plot' ||
+                    entry.key == 'Date of Death' ||
+                    entry.key == 'Forename' ||
+                    entry.key == 'Surname') {
+                  // Skip these fields (already handled or not needed)
+                  continue;
+                }
+                if (entry.key == 'Abbreviation' &&
+                    entry.value != null &&
+                    entry.value.toString().isNotEmpty) {
+                  final id = int.tryParse(entry.value.toString());
+                  if (id != null) {
+                    abbreviationWidget =
+                        await _buildAbbreviationField(context, id);
+                  } else {
+                    abbreviationWidget = Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Abbreviation: ',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text(entry.value.toString()),
+                      ],
+                    );
+                  }
+                } else if (entry.key == 'XY') {
+                  xyWidget = Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('XY: ',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        Expanded(child: Text('${entry.value ?? ''}')),
+                      ],
+                    ),
+                  );
+                } else if (entry.key == 'Row') {
+                  rowWidget = Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Row: ',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        Expanded(child: Text('${entry.value ?? ''}')),
+                      ],
+                    ),
+                  );
+                } else if (entry.key == 'New Plot') {
+                  fields.add(Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Plot: ',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        Expanded(child: Text('${entry.value ?? ''}')),
+                      ],
+                    ),
+                  ));
+                } else if (entry.key == 'Section') {
+                  // Add Section, then Row (if present) immediately after
+                  fields.add(Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Section: ',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        Expanded(child: Text('${entry.value ?? ''}')),
+                      ],
+                    ),
+                  ));
+                  if (rowWidget != null) {
+                    fields.add(rowWidget);
+                    rowWidget = null; // Prevent double-adding
+                  }
+                } else {
+                  fields.add(Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${entry.key}: ',
+                            style:
+                                const TextStyle(fontWeight: FontWeight.bold)),
+                        Expanded(child: Text('${entry.value ?? ''}')),
+                      ],
+                    ),
+                  ));
+                }
+              }
+              // Add abbreviation widget at the bottom if present
+              if (abbreviationWidget != null) {
+                fields.add(const SizedBox(height: 8));
+                fields.add(abbreviationWidget);
+              }
+              // Add XY widget at the very end if present
+              if (xyWidget != null) {
+                fields.add(const SizedBox(height: 8));
+                fields.add(xyWidget);
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: fields,
+              );
+            }(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              return snapshot.data ?? const SizedBox.shrink();
+            },
           ),
         ),
         actions: [
@@ -345,20 +264,83 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _detailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$label: ',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          Expanded(
-            child: Text(value),
-          ),
-        ],
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(AppConstants.appName),
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance.collection('sections').snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: \\${snapshot.error}'));
+          }
+          final docs = snapshot.data?.docs ?? [];
+          if (docs.isEmpty) {
+            return const Center(child: Text('No sections found.'));
+          }
+          // Sort by Surname before display, putting missing/empty surnames ('Unknown') at the bottom
+          docs.sort((a, b) {
+            final aMap = a.data() as Map<String, dynamic>;
+            final bMap = b.data() as Map<String, dynamic>;
+            final aSurname =
+                (aMap['Surname']?.toString().trim().isNotEmpty ?? false)
+                    ? aMap['Surname'].toString().toLowerCase()
+                    : 'zzzzzzzz'; // Sort 'Unknown' to bottom
+            final bSurname =
+                (bMap['Surname']?.toString().trim().isNotEmpty ?? false)
+                    ? bMap['Surname'].toString().toLowerCase()
+                    : 'zzzzzzzz'; // Sort 'Unknown' to bottom
+            return aSurname.compareTo(bSurname);
+          });
+          return ListView.builder(
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final data = docs[index].data() as Map<String, dynamic>;
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: ListTile(
+                  title: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                              child: Text(
+                                  '${(data['Surname']?.toString().trim().isNotEmpty ?? false) ? data['Surname'] : 'Unknown'}, ${data['Forename'] ?? ''}')),
+                          if (data['Section'] != null)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 12.0),
+                              child: Text('Section: ${data['Section']}',
+                                  style: const TextStyle(fontSize: 13)),
+                            ),
+                          if (data['New Plot'] != null)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 12.0),
+                              child: Text('Plot: ${data['New Plot']}',
+                                  style: const TextStyle(fontSize: 13)),
+                            ),
+                        ],
+                      ),
+                      if (data['Date of Death'] != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2.0),
+                          child: Text('Date of Death: ${data['Date of Death']}',
+                              style: const TextStyle(fontSize: 13)),
+                        ),
+                    ],
+                  ),
+                  subtitle: null,
+                  onTap: () => _showDetailsDialog(context, data),
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
