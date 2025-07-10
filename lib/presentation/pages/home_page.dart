@@ -3,8 +3,77 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/constants/app_constants.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  bool _showSearch = false;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+
+  // Infinite scroll
+  static const int _batchSize = 30;
+  int _loadedCount = 30;
+  final ScrollController _scrollController = ScrollController();
+  bool _showScrollToTop = false;
+  bool _isLoadingMore = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(() {
+      if (_scrollController.offset > 300 && !_showScrollToTop) {
+        setState(() => _showScrollToTop = true);
+      } else if (_scrollController.offset <= 300 && _showScrollToTop) {
+        setState(() => _showScrollToTop = false);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _showSearch = !_showSearch;
+      if (!_showSearch) {
+        _searchQuery = '';
+        _searchController.clear();
+      }
+    });
+  }
+
+  void _scrollToTop() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        _scrollController.animateTo(0,
+            duration: const Duration(milliseconds: 400), curve: Curves.easeOut);
+      } catch (_) {
+        _scrollController.jumpTo(0);
+      }
+    });
+  }
+
+  void _handleInfiniteScroll(int totalCount) {
+    if (_isLoadingMore) return;
+    if (_loadedCount < totalCount) {
+      _isLoadingMore = true;
+      setState(() {
+        _loadedCount += _batchSize;
+      });
+      Future.delayed(const Duration(milliseconds: 200), () {
+        _isLoadingMore = false;
+      });
+    }
+  }
 
   Future<Widget> _buildAbbreviationField(
       BuildContext context, int abbreviationId) async {
@@ -150,7 +219,8 @@ class HomePage extends StatelessWidget {
                 if (entry.key == 'Abbreviation' &&
                     entry.value != null &&
                     entry.value.toString().isNotEmpty) {
-                  final id = int.tryParse(entry.value.toString());
+                  final abbrValue = entry.value.toString();
+                  final id = int.tryParse(abbrValue);
                   if (id != null) {
                     abbreviationWidget =
                         await _buildAbbreviationField(context, id);
@@ -160,10 +230,36 @@ class HomePage extends StatelessWidget {
                       children: [
                         const Text('Abbreviation: ',
                             style: TextStyle(fontWeight: FontWeight.bold)),
-                        Text(entry.value.toString()),
+                        GestureDetector(
+                          onTap: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: Text(abbrValue),
+                                content: const Text('No further info found.'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(),
+                                    child: const Text('Close'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                          child: Text(
+                            abbrValue,
+                            style: const TextStyle(
+                              fontStyle: FontStyle.italic,
+                              decoration: TextDecoration.underline,
+                              color: Colors.blue,
+                            ),
+                          ),
+                        ),
                       ],
                     );
                   }
+                  continue; // Do not add to fields here
                 } else if (entry.key == 'XY') {
                   xyWidget = Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),
@@ -176,6 +272,7 @@ class HomePage extends StatelessWidget {
                       ],
                     ),
                   );
+                  continue; // Do not add to fields here
                 } else if (entry.key == 'Row') {
                   rowWidget = Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),
@@ -232,12 +329,11 @@ class HomePage extends StatelessWidget {
                   ));
                 }
               }
-              // Add abbreviation widget at the bottom if present
+              // Always add abbreviation immediately before XY at the end
               if (abbreviationWidget != null) {
                 fields.add(const SizedBox(height: 8));
                 fields.add(abbreviationWidget);
               }
-              // Add XY widget at the very end if present
               if (xyWidget != null) {
                 fields.add(const SizedBox(height: 8));
                 fields.add(xyWidget);
@@ -273,16 +369,7 @@ class HomePage extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
-            onPressed: () {
-              // TODO: Implement search functionality
-              showDialog(
-                context: context,
-                builder: (context) => const AlertDialog(
-                  title: Text('Search'),
-                  content: Text('Search functionality coming soon.'),
-                ),
-              );
-            },
+            onPressed: _toggleSearch,
           ),
           IconButton(
             icon: const Icon(Icons.logout),
@@ -290,77 +377,160 @@ class HomePage extends StatelessWidget {
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('sections').snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: \\${snapshot.error}'));
-          }
-          final docs = snapshot.data?.docs ?? [];
-          if (docs.isEmpty) {
-            return const Center(child: Text('No sections found.'));
-          }
-          // Sort by Surname before display, putting missing/empty surnames ('Unknown') at the bottom
-          docs.sort((a, b) {
-            final aMap = a.data() as Map<String, dynamic>;
-            final bMap = b.data() as Map<String, dynamic>;
-            final aSurname =
-                (aMap['Surname']?.toString().trim().isNotEmpty ?? false)
-                    ? aMap['Surname'].toString().toLowerCase()
-                    : 'zzzzzzzz'; // Sort 'Unknown' to bottom
-            final bSurname =
-                (bMap['Surname']?.toString().trim().isNotEmpty ?? false)
-                    ? bMap['Surname'].toString().toLowerCase()
-                    : 'zzzzzzzz'; // Sort 'Unknown' to bottom
-            return aSurname.compareTo(bSurname);
-          });
-          return ListView.builder(
-            itemCount: docs.length,
-            itemBuilder: (context, index) {
-              final data = docs[index].data() as Map<String, dynamic>;
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: ListTile(
-                  title: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                              child: Text(
-                                  '${(data['Surname']?.toString().trim().isNotEmpty ?? false) ? data['Surname'] : 'Unknown'}, ${data['Forename'] ?? ''}')),
-                          if (data['Section'] != null)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 12.0),
-                              child: Text('Section: ${data['Section']}',
-                                  style: const TextStyle(fontSize: 13)),
-                            ),
-                          if (data['New Plot'] != null)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 12.0),
-                              child: Text('Plot: ${data['New Plot']}',
-                                  style: const TextStyle(fontSize: 13)),
-                            ),
-                        ],
-                      ),
-                      if (data['Date of Death'] != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2.0),
-                          child: Text('Date of Death: ${data['Date of Death']}',
-                              style: const TextStyle(fontSize: 13)),
-                        ),
-                    ],
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              if (_showSearch)
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: const InputDecoration(
+                      hintText: 'Search by Surname or Forename',
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                        _loadedCount = _batchSize; // Reset on new search
+                      });
+                    },
                   ),
-                  subtitle: null,
-                  onTap: () => _showDetailsDialog(context, data),
                 ),
-              );
-            },
-          );
-        },
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('sections')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: \\${snapshot.error}'));
+                    }
+                    final docs = snapshot.data?.docs ?? [];
+                    if (docs.isEmpty) {
+                      return const Center(child: Text('No sections found.'));
+                    }
+                    // Sort by Surname before display, putting missing/empty surnames ('Unknown') at the bottom
+                    docs.sort((a, b) {
+                      final aMap = a.data() as Map<String, dynamic>;
+                      final bMap = b.data() as Map<String, dynamic>;
+                      final aSurname =
+                          (aMap['Surname']?.toString().trim().isNotEmpty ??
+                                  false)
+                              ? aMap['Surname'].toString().toLowerCase()
+                              : 'zzzzzzzz'; // Sort 'Unknown' to bottom
+                      final bSurname =
+                          (bMap['Surname']?.toString().trim().isNotEmpty ??
+                                  false)
+                              ? bMap['Surname'].toString().toLowerCase()
+                              : 'zzzzzzzz'; // Sort 'Unknown' to bottom
+                      return aSurname.compareTo(bSurname);
+                    });
+                    // Filter by search query
+                    final filteredDocs = _searchQuery.isEmpty
+                        ? docs
+                        : docs.where((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            final surname = (data['Surname'] ?? '')
+                                .toString()
+                                .toLowerCase();
+                            final forename = (data['Forename'] ?? '')
+                                .toString()
+                                .toLowerCase();
+                            final query = _searchQuery.toLowerCase();
+                            return surname.contains(query) ||
+                                forename.contains(query);
+                          }).toList();
+                    final visibleDocs =
+                        filteredDocs.take(_loadedCount).toList();
+                    final showLoader = _loadedCount < filteredDocs.length;
+                    return ListView.builder(
+                      key: const PageStorageKey('sections-list'),
+                      controller: _scrollController,
+                      cacheExtent: 500,
+                      itemCount: visibleDocs.length + (showLoader ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        // Only trigger loading more from the loading indicator at the end
+                        if (index == visibleDocs.length && showLoader) {
+                          if (!_isLoadingMore) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              _handleInfiniteScroll(filteredDocs.length);
+                            });
+                          }
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+                        final data =
+                            visibleDocs[index].data() as Map<String, dynamic>;
+                        return Card(
+                          margin: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          child: ListTile(
+                            title: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                        child: Text(
+                                            '${(data['Surname']?.toString().trim().isNotEmpty ?? false) ? data['Surname'] : 'Unknown'}, ${data['Forename'] ?? ''}')),
+                                    if (data['Section'] != null)
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(left: 12.0),
+                                        child: Text(
+                                            'Section: ${data['Section']}',
+                                            style:
+                                                const TextStyle(fontSize: 13)),
+                                      ),
+                                    if (data['New Plot'] != null)
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(left: 12.0),
+                                        child: Text('Plot: ${data['New Plot']}',
+                                            style:
+                                                const TextStyle(fontSize: 13)),
+                                      ),
+                                  ],
+                                ),
+                                if (data['Date of Death'] != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2.0),
+                                    child: Text(
+                                        'Date of Death: ${data['Date of Death']}',
+                                        style: const TextStyle(fontSize: 13)),
+                                  ),
+                              ],
+                            ),
+                            subtitle: null,
+                            onTap: () => _showDetailsDialog(context, data),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          if (_showScrollToTop)
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: FloatingActionButton(
+                mini: true,
+                onPressed: _scrollToTop,
+                child: const Icon(Icons.arrow_upward),
+              ),
+            ),
+        ],
       ),
     );
   }
