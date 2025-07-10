@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';
 import '../../domain/entities/memorial.dart';
 import '../widgets/memorial_card_widget.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 /// Home page of the memorials application.
 ///
@@ -106,6 +107,13 @@ class _HomePageState extends State<HomePage> {
             icon: const Icon(Icons.sync),
             onPressed: () {
               _showSyncDialog(context);
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sign Out',
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
             },
           ),
         ],
