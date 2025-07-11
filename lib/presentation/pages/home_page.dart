@@ -448,7 +448,8 @@ class _HomePageState extends State<HomePage> {
             .limit(1)
             .get();
         if (query.docs.isNotEmpty) {
-          final abbrText = query.docs.first.data()['Abbreviation']?.toString() ?? abbrValue;
+          final abbrText =
+              query.docs.first.data()['Abbreviation']?.toString() ?? abbrValue;
           controllers['Abbreviation']?.text = abbrText;
         }
       }
@@ -473,7 +474,8 @@ class _HomePageState extends State<HomePage> {
     // Build the ordered list of fields, excluding 'Old Plot' and 'ID'
     final List<String> orderedFields = [
       ...preferredOrder.where((key) => controllers.containsKey(key)),
-      ...controllers.keys.where((key) => !preferredOrder.contains(key) && key != 'Old Plot' && key != 'ID'),
+      ...controllers.keys.where((key) =>
+          !preferredOrder.contains(key) && key != 'Old Plot' && key != 'ID'),
     ];
 
     showDialog(
@@ -518,6 +520,35 @@ class _HomePageState extends State<HomePage> {
               }
             },
             child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteSection(String docId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Entry'),
+        content: const Text('Are you sure you want to delete this entry?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            onPressed: () async {
+              await FirebaseFirestore.instance
+                  .collection('sections')
+                  .doc(docId)
+                  .delete();
+              Navigator.of(context).pop();
+            },
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -674,11 +705,22 @@ class _HomePageState extends State<HomePage> {
                             ),
                             subtitle: null,
                             onTap: () => _showDetailsDialog(context, data),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.edit),
-                              tooltip: 'Edit',
-                              onPressed: () =>
-                                  _showEditSectionDialog(data, doc.id),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit),
+                                  tooltip: 'Edit',
+                                  onPressed: () =>
+                                      _showEditSectionDialog(data, doc.id),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete),
+                                  tooltip: 'Delete',
+                                  onPressed: () =>
+                                      _confirmDeleteSection(doc.id),
+                                ),
+                              ],
                             ),
                           ),
                         );
