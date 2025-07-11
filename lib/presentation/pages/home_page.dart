@@ -16,6 +16,10 @@ class _HomePageState extends State<HomePage> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
+  // Sorting state
+  String _sortBy = 'Surname';
+  bool _ascending = true;
+
   // Infinite scroll
   static const int _batchSize = 30;
   int _loadedCount = 30;
@@ -565,6 +569,67 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: Drawer(
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text('Sort By',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+              ListTile(
+                leading: const Icon(Icons.sort_by_alpha),
+                title: const Text('Surname'),
+                trailing: _sortBy == 'Surname' ? const Icon(Icons.check) : null,
+                onTap: () {
+                  setState(() {
+                    _sortBy = 'Surname';
+                  });
+                  Navigator.of(context).pop();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.grid_on),
+                title: const Text('Plot'),
+                trailing:
+                    _sortBy == 'New Plot' ? const Icon(Icons.check) : null,
+                onTap: () {
+                  setState(() {
+                    _sortBy = 'New Plot';
+                  });
+                  Navigator.of(context).pop();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.map),
+                title: const Text('Section'),
+                trailing: _sortBy == 'Section' ? const Icon(Icons.check) : null,
+                onTap: () {
+                  setState(() {
+                    _sortBy = 'Section';
+                  });
+                  Navigator.of(context).pop();
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: Icon(
+                    _ascending ? Icons.arrow_upward : Icons.arrow_downward),
+                title: Text(_ascending ? 'Ascending' : 'Descending'),
+                onTap: () {
+                  setState(() {
+                    _ascending = !_ascending;
+                  });
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
       appBar: AppBar(
         title: Text(AppConstants.appName),
         actions: [
@@ -621,17 +686,101 @@ class _HomePageState extends State<HomePage> {
                     docs.sort((a, b) {
                       final aMap = a.data() as Map<String, dynamic>;
                       final bMap = b.data() as Map<String, dynamic>;
-                      final aSurname =
-                          (aMap['Surname']?.toString().trim().isNotEmpty ??
-                                  false)
-                              ? aMap['Surname'].toString().toLowerCase()
-                              : 'zzzzzzzz'; // Sort 'Unknown' to bottom
-                      final bSurname =
-                          (bMap['Surname']?.toString().trim().isNotEmpty ??
-                                  false)
-                              ? bMap['Surname'].toString().toLowerCase()
-                              : 'zzzzzzzz'; // Sort 'Unknown' to bottom
-                      return aSurname.compareTo(bSurname);
+                      String aValue = '';
+                      String bValue = '';
+                      int cmp = 0;
+                      if (_sortBy == 'Surname') {
+                        aValue =
+                            (aMap['Surname']?.toString().trim().isNotEmpty ??
+                                    false)
+                                ? aMap['Surname'].toString().toLowerCase()
+                                : 'zzzzzzzz';
+                        bValue =
+                            (bMap['Surname']?.toString().trim().isNotEmpty ??
+                                    false)
+                                ? bMap['Surname'].toString().toLowerCase()
+                                : 'zzzzzzzz';
+                        cmp = aValue.compareTo(bValue);
+                        if (cmp == 0) {
+                          // Secondary sort by Section
+                          final aSection =
+                              (aMap['Section'] ?? '').toString().toLowerCase();
+                          final bSection =
+                              (bMap['Section'] ?? '').toString().toLowerCase();
+                          cmp = aSection.compareTo(bSection);
+                          if (cmp == 0) {
+                            // Tertiary sort by Plot
+                            final aPlot = (aMap['New Plot'] ?? '')
+                                .toString()
+                                .toLowerCase();
+                            final bPlot = (bMap['New Plot'] ?? '')
+                                .toString()
+                                .toLowerCase();
+                            cmp = aPlot.compareTo(bPlot);
+                          }
+                        }
+                      } else if (_sortBy == 'New Plot') {
+                        aValue =
+                            (aMap['New Plot'] ?? '').toString().toLowerCase();
+                        bValue =
+                            (bMap['New Plot'] ?? '').toString().toLowerCase();
+                        cmp = aValue.compareTo(bValue);
+                        if (cmp == 0) {
+                          // Secondary sort by Surname
+                          final aSurname =
+                              (aMap['Surname']?.toString().trim().isNotEmpty ??
+                                      false)
+                                  ? aMap['Surname'].toString().toLowerCase()
+                                  : 'zzzzzzzz';
+                          final bSurname =
+                              (bMap['Surname']?.toString().trim().isNotEmpty ??
+                                      false)
+                                  ? bMap['Surname'].toString().toLowerCase()
+                                  : 'zzzzzzzz';
+                          cmp = aSurname.compareTo(bSurname);
+                          if (cmp == 0) {
+                            // Tertiary sort by Section
+                            final aSection = (aMap['Section'] ?? '')
+                                .toString()
+                                .toLowerCase();
+                            final bSection = (bMap['Section'] ?? '')
+                                .toString()
+                                .toLowerCase();
+                            cmp = aSection.compareTo(bSection);
+                          }
+                        }
+                      } else if (_sortBy == 'Section') {
+                        aValue =
+                            (aMap['Section'] ?? '').toString().toLowerCase();
+                        bValue =
+                            (bMap['Section'] ?? '').toString().toLowerCase();
+                        cmp = aValue.compareTo(bValue);
+                        if (cmp == 0) {
+                          // Secondary sort by Surname
+                          final aSurname =
+                              (aMap['Surname']?.toString().trim().isNotEmpty ??
+                                      false)
+                                  ? aMap['Surname'].toString().toLowerCase()
+                                  : 'zzzzzzzz';
+                          final bSurname =
+                              (bMap['Surname']?.toString().trim().isNotEmpty ??
+                                      false)
+                                  ? bMap['Surname'].toString().toLowerCase()
+                                  : 'zzzzzzzz';
+                          cmp = aSurname.compareTo(bSurname);
+                          if (cmp == 0) {
+                            // Tertiary sort by Plot
+                            final aPlot = (aMap['New Plot'] ?? '')
+                                .toString()
+                                .toLowerCase();
+                            final bPlot = (bMap['New Plot'] ?? '')
+                                .toString()
+                                .toLowerCase();
+                            cmp = aPlot.compareTo(bPlot);
+                          }
+                        }
+                      }
+                      return _ascending ? cmp : -cmp;
                     });
                     // Filter by search query
                     final filteredDocs = _searchQuery.isEmpty
