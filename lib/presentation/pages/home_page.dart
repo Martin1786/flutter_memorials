@@ -266,7 +266,7 @@ class _HomePageState extends State<HomePage> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('XY: ',
+                        const Text('Location: ',
                             style: TextStyle(fontWeight: FontWeight.bold)),
                         Expanded(child: Text('${entry.value ?? ''}')),
                       ],
@@ -355,6 +355,169 @@ class _HomePageState extends State<HomePage> {
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddSectionDialog() {
+    final _formKey = GlobalKey<FormState>();
+    final TextEditingController surnameController = TextEditingController();
+    final TextEditingController forenameController = TextEditingController();
+    final TextEditingController sectionController = TextEditingController();
+    final TextEditingController plotController = TextEditingController();
+    final TextEditingController dateOfDeathController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add New Grave'),
+        content: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: surnameController,
+                  decoration: const InputDecoration(labelText: 'Surname'),
+                  validator: (value) =>
+                      value == null || value.isEmpty ? 'Required' : null,
+                ),
+                TextFormField(
+                  controller: forenameController,
+                  decoration: const InputDecoration(labelText: 'Forename'),
+                ),
+                TextFormField(
+                  controller: sectionController,
+                  decoration: const InputDecoration(labelText: 'Section'),
+                ),
+                TextFormField(
+                  controller: plotController,
+                  decoration: const InputDecoration(labelText: 'Plot'),
+                ),
+                TextFormField(
+                  controller: dateOfDeathController,
+                  decoration: const InputDecoration(labelText: 'Date of Death'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (_formKey.currentState?.validate() ?? false) {
+                await FirebaseFirestore.instance.collection('sections').add({
+                  'Surname': surnameController.text,
+                  'Forename': forenameController.text,
+                  'Section': sectionController.text,
+                  'New Plot': plotController.text,
+                  'Date of Death': dateOfDeathController.text,
+                });
+                Navigator.of(context).pop();
+              }
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditSectionDialog(Map<String, dynamic> data, String docId) {
+    final _formKey = GlobalKey<FormState>();
+    // Create a controller for each field
+    final Map<String, TextEditingController> controllers = {
+      for (final entry in data.entries)
+        entry.key: TextEditingController(text: entry.value?.toString() ?? ''),
+    };
+
+    // If Abbreviation is a number, fetch the text version from Firestore
+    Future<void> _resolveAbbreviation() async {
+      final abbrValue = data['Abbreviation']?.toString();
+      if (abbrValue != null && int.tryParse(abbrValue) != null) {
+        final query = await FirebaseFirestore.instance
+            .collection('abbreviations')
+            .where('ID', isEqualTo: int.parse(abbrValue))
+            .limit(1)
+            .get();
+        if (query.docs.isNotEmpty) {
+          final abbrText = query.docs.first.data()['Abbreviation']?.toString() ?? abbrValue;
+          controllers['Abbreviation']?.text = abbrText;
+        }
+      }
+    }
+
+    // Call the resolver if needed
+    if (controllers.containsKey('Abbreviation')) {
+      _resolveAbbreviation();
+    }
+
+    // Define the preferred order
+    final List<String> preferredOrder = [
+      'Surname',
+      'Forename',
+      'Date of Death',
+      'New Plot',
+      'Section',
+      'Row',
+      'Burial',
+    ];
+
+    // Build the ordered list of fields, excluding 'Old Plot' and 'ID'
+    final List<String> orderedFields = [
+      ...preferredOrder.where((key) => controllers.containsKey(key)),
+      ...controllers.keys.where((key) => !preferredOrder.contains(key) && key != 'Old Plot' && key != 'ID'),
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Grave Entry'),
+        content: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: orderedFields.map((key) {
+                final label = key == 'XY' ? 'Location' : key;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: TextFormField(
+                    controller: controllers[key],
+                    decoration: InputDecoration(labelText: label),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (_formKey.currentState?.validate() ?? true) {
+                final Map<String, dynamic> updatedData = {
+                  for (final entry in controllers.entries)
+                    entry.key: entry.value.text,
+                };
+                await FirebaseFirestore.instance
+                    .collection('sections')
+                    .doc(docId)
+                    .update(updatedData);
+                Navigator.of(context).pop();
+              }
+            },
+            child: const Text('Save'),
           ),
         ],
       ),
@@ -467,8 +630,8 @@ class _HomePageState extends State<HomePage> {
                             child: Center(child: CircularProgressIndicator()),
                           );
                         }
-                        final data =
-                            visibleDocs[index].data() as Map<String, dynamic>;
+                        final doc = visibleDocs[index];
+                        final data = doc.data() as Map<String, dynamic>;
                         return Card(
                           margin: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 8),
@@ -511,6 +674,12 @@ class _HomePageState extends State<HomePage> {
                             ),
                             subtitle: null,
                             onTap: () => _showDetailsDialog(context, data),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.edit),
+                              tooltip: 'Edit',
+                              onPressed: () =>
+                                  _showEditSectionDialog(data, doc.id),
+                            ),
                           ),
                         );
                       },
@@ -531,6 +700,11 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showAddSectionDialog,
+        child: const Icon(Icons.add),
+        tooltip: 'Add New Grave',
       ),
     );
   }
