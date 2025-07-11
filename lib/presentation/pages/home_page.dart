@@ -14,6 +14,7 @@ class _HomePageState extends State<HomePage> {
   bool _showSearch = false;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   // Infinite scroll
   static const int _batchSize = 30;
@@ -37,6 +38,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -47,6 +49,11 @@ class _HomePageState extends State<HomePage> {
       if (!_showSearch) {
         _searchQuery = '';
         _searchController.clear();
+      } else {
+        // Request focus when showing search
+        Future.delayed(Duration.zero, () {
+          _searchFocusNode.requestFocus();
+        });
       }
     });
   }
@@ -580,6 +587,7 @@ class _HomePageState extends State<HomePage> {
                   padding: const EdgeInsets.all(8.0),
                   child: TextField(
                     controller: _searchController,
+                    focusNode: _searchFocusNode,
                     decoration: const InputDecoration(
                       hintText: 'Search by Surname or Forename',
                       prefixIcon: Icon(Icons.search),
@@ -643,6 +651,20 @@ class _HomePageState extends State<HomePage> {
                     final visibleDocs =
                         filteredDocs.take(_loadedCount).toList();
                     final showLoader = _loadedCount < filteredDocs.length;
+
+                    if (filteredDocs.isEmpty) {
+                      return const Center(
+                        child: Text(
+                          'No results found.',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      );
+                    }
+
                     return ListView.builder(
                       key: const PageStorageKey('sections-list'),
                       controller: _scrollController,
