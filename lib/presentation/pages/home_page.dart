@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/constants/app_constants.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/gestures.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -626,6 +627,19 @@ class _HomePageState extends State<HomePage> {
                   Navigator.of(context).pop();
                 },
               ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.bug_report),
+                title: const Text('Test Scroll Page'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const TestScrollPage(),
+                    ),
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -643,281 +657,273 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      body: Stack(
+      body: Column(
         children: [
-          Column(
-            children: [
-              if (_showSearch)
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: TextField(
-                    controller: _searchController,
-                    focusNode: _searchFocusNode,
-                    decoration: const InputDecoration(
-                      hintText: 'Search by Surname or Forename',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
+          if (_showSearch)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
+                decoration: const InputDecoration(
+                  hintText: 'Search by Surname or Forename',
+                  prefixIcon: Icon(Icons.search),
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                    _loadedCount = _batchSize; // Reset on new search
+                  });
+                },
+              ),
+            ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream:
+                  FirebaseFirestore.instance.collection('sections').snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+                final docs = snapshot.data?.docs ?? [];
+                if (docs.isEmpty) {
+                  return const Center(child: Text('No sections found.'));
+                }
+                // Sort by Surname before display, putting missing/empty surnames ('Unknown') at the bottom
+                docs.sort((a, b) {
+                  final aMap = a.data() as Map<String, dynamic>;
+                  final bMap = b.data() as Map<String, dynamic>;
+                  String aValue = '';
+                  String bValue = '';
+                  int cmp = 0;
+                  if (_sortBy == 'Surname') {
+                    aValue =
+                        (aMap['Surname']?.toString().trim().isNotEmpty ?? false)
+                            ? aMap['Surname'].toString().toLowerCase()
+                            : 'zzzzzzzz';
+                    bValue =
+                        (bMap['Surname']?.toString().trim().isNotEmpty ?? false)
+                            ? bMap['Surname'].toString().toLowerCase()
+                            : 'zzzzzzzz';
+                    cmp = aValue.compareTo(bValue);
+                    if (cmp == 0) {
+                      // Secondary sort by Section
+                      final aSection =
+                          (aMap['Section'] ?? '').toString().toLowerCase();
+                      final bSection =
+                          (bMap['Section'] ?? '').toString().toLowerCase();
+                      cmp = aSection.compareTo(bSection);
+                      if (cmp == 0) {
+                        // Tertiary sort by Plot
+                        final aPlot =
+                            (aMap['New Plot'] ?? '').toString().toLowerCase();
+                        final bPlot =
+                            (bMap['New Plot'] ?? '').toString().toLowerCase();
+                        cmp = aPlot.compareTo(bPlot);
+                      }
+                    }
+                  } else if (_sortBy == 'New Plot') {
+                    aValue = (aMap['New Plot'] ?? '').toString().toLowerCase();
+                    bValue = (bMap['New Plot'] ?? '').toString().toLowerCase();
+                    cmp = aValue.compareTo(bValue);
+                    if (cmp == 0) {
+                      // Secondary sort by Surname
+                      final aSurname =
+                          (aMap['Surname']?.toString().trim().isNotEmpty ??
+                                  false)
+                              ? aMap['Surname'].toString().toLowerCase()
+                              : 'zzzzzzzz';
+                      final bSurname =
+                          (bMap['Surname']?.toString().trim().isNotEmpty ??
+                                  false)
+                              ? bMap['Surname'].toString().toLowerCase()
+                              : 'zzzzzzzz';
+                      cmp = aSurname.compareTo(bSurname);
+                      if (cmp == 0) {
+                        // Tertiary sort by Section
+                        final aSection =
+                            (aMap['Section'] ?? '').toString().toLowerCase();
+                        final bSection =
+                            (bMap['Section'] ?? '').toString().toLowerCase();
+                        cmp = aSection.compareTo(bSection);
+                      }
+                    }
+                  } else if (_sortBy == 'Section') {
+                    aValue = (aMap['Section'] ?? '').toString().toLowerCase();
+                    bValue = (bMap['Section'] ?? '').toString().toLowerCase();
+                    cmp = aValue.compareTo(bValue);
+                    if (cmp == 0) {
+                      // Secondary sort by Surname
+                      final aSurname =
+                          (aMap['Surname']?.toString().trim().isNotEmpty ??
+                                  false)
+                              ? aMap['Surname'].toString().toLowerCase()
+                              : 'zzzzzzzz';
+                      final bSurname =
+                          (bMap['Surname']?.toString().trim().isNotEmpty ??
+                                  false)
+                              ? bMap['Surname'].toString().toLowerCase()
+                              : 'zzzzzzzz';
+                      cmp = aSurname.compareTo(bSurname);
+                      if (cmp == 0) {
+                        // Tertiary sort by Plot
+                        final aPlot =
+                            (aMap['New Plot'] ?? '').toString().toLowerCase();
+                        final bPlot =
+                            (bMap['New Plot'] ?? '').toString().toLowerCase();
+                        cmp = aPlot.compareTo(bPlot);
+                      }
+                    }
+                  }
+                  return _ascending ? cmp : -cmp;
+                });
+                // Filter by search query
+                final filteredDocs = _searchQuery.isEmpty
+                    ? docs
+                    : docs.where((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final surname =
+                            (data['Surname'] ?? '').toString().toLowerCase();
+                        final forename =
+                            (data['Forename'] ?? '').toString().toLowerCase();
+                        final query = _searchQuery.toLowerCase();
+                        return surname.contains(query) ||
+                            forename.contains(query);
+                      }).toList();
+                final visibleDocs = filteredDocs.take(_loadedCount).toList();
+                final showLoader = _loadedCount < filteredDocs.length;
+
+                if (filteredDocs.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'No results found.',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
                     ),
-                    onChanged: (value) {
-                      setState(() {
-                        _searchQuery = value;
-                        _loadedCount = _batchSize; // Reset on new search
-                      });
+                  );
+                }
+
+                return ScrollConfiguration(
+                  behavior: const MaterialScrollBehavior().copyWith(
+                    dragDevices: {
+                      PointerDeviceKind.touch,
+                      PointerDeviceKind.mouse
                     },
                   ),
-                ),
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('sections')
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (snapshot.hasError) {
-                      return Center(child: Text('Error: \\${snapshot.error}'));
-                    }
-                    final docs = snapshot.data?.docs ?? [];
-                    if (docs.isEmpty) {
-                      return const Center(child: Text('No sections found.'));
-                    }
-                    // Sort by Surname before display, putting missing/empty surnames ('Unknown') at the bottom
-                    docs.sort((a, b) {
-                      final aMap = a.data() as Map<String, dynamic>;
-                      final bMap = b.data() as Map<String, dynamic>;
-                      String aValue = '';
-                      String bValue = '';
-                      int cmp = 0;
-                      if (_sortBy == 'Surname') {
-                        aValue =
-                            (aMap['Surname']?.toString().trim().isNotEmpty ??
-                                    false)
-                                ? aMap['Surname'].toString().toLowerCase()
-                                : 'zzzzzzzz';
-                        bValue =
-                            (bMap['Surname']?.toString().trim().isNotEmpty ??
-                                    false)
-                                ? bMap['Surname'].toString().toLowerCase()
-                                : 'zzzzzzzz';
-                        cmp = aValue.compareTo(bValue);
-                        if (cmp == 0) {
-                          // Secondary sort by Section
-                          final aSection =
-                              (aMap['Section'] ?? '').toString().toLowerCase();
-                          final bSection =
-                              (bMap['Section'] ?? '').toString().toLowerCase();
-                          cmp = aSection.compareTo(bSection);
-                          if (cmp == 0) {
-                            // Tertiary sort by Plot
-                            final aPlot = (aMap['New Plot'] ?? '')
-                                .toString()
-                                .toLowerCase();
-                            final bPlot = (bMap['New Plot'] ?? '')
-                                .toString()
-                                .toLowerCase();
-                            cmp = aPlot.compareTo(bPlot);
-                          }
+                  child: ListView.builder(
+                    key: const PageStorageKey('sections-list'),
+                    controller: _scrollController,
+                    cacheExtent: 500,
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: visibleDocs.length + (showLoader ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      // Only trigger loading more from the loading indicator at the end
+                      if (index == visibleDocs.length && showLoader) {
+                        if (!_isLoadingMore) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            _handleInfiniteScroll(filteredDocs.length);
+                          });
                         }
-                      } else if (_sortBy == 'New Plot') {
-                        aValue =
-                            (aMap['New Plot'] ?? '').toString().toLowerCase();
-                        bValue =
-                            (bMap['New Plot'] ?? '').toString().toLowerCase();
-                        cmp = aValue.compareTo(bValue);
-                        if (cmp == 0) {
-                          // Secondary sort by Surname
-                          final aSurname =
-                              (aMap['Surname']?.toString().trim().isNotEmpty ??
-                                      false)
-                                  ? aMap['Surname'].toString().toLowerCase()
-                                  : 'zzzzzzzz';
-                          final bSurname =
-                              (bMap['Surname']?.toString().trim().isNotEmpty ??
-                                      false)
-                                  ? bMap['Surname'].toString().toLowerCase()
-                                  : 'zzzzzzzz';
-                          cmp = aSurname.compareTo(bSurname);
-                          if (cmp == 0) {
-                            // Tertiary sort by Section
-                            final aSection = (aMap['Section'] ?? '')
-                                .toString()
-                                .toLowerCase();
-                            final bSection = (bMap['Section'] ?? '')
-                                .toString()
-                                .toLowerCase();
-                            cmp = aSection.compareTo(bSection);
-                          }
-                        }
-                      } else if (_sortBy == 'Section') {
-                        aValue =
-                            (aMap['Section'] ?? '').toString().toLowerCase();
-                        bValue =
-                            (bMap['Section'] ?? '').toString().toLowerCase();
-                        cmp = aValue.compareTo(bValue);
-                        if (cmp == 0) {
-                          // Secondary sort by Surname
-                          final aSurname =
-                              (aMap['Surname']?.toString().trim().isNotEmpty ??
-                                      false)
-                                  ? aMap['Surname'].toString().toLowerCase()
-                                  : 'zzzzzzzz';
-                          final bSurname =
-                              (bMap['Surname']?.toString().trim().isNotEmpty ??
-                                      false)
-                                  ? bMap['Surname'].toString().toLowerCase()
-                                  : 'zzzzzzzz';
-                          cmp = aSurname.compareTo(bSurname);
-                          if (cmp == 0) {
-                            // Tertiary sort by Plot
-                            final aPlot = (aMap['New Plot'] ?? '')
-                                .toString()
-                                .toLowerCase();
-                            final bPlot = (bMap['New Plot'] ?? '')
-                                .toString()
-                                .toLowerCase();
-                            cmp = aPlot.compareTo(bPlot);
-                          }
-                        }
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
                       }
-                      return _ascending ? cmp : -cmp;
-                    });
-                    // Filter by search query
-                    final filteredDocs = _searchQuery.isEmpty
-                        ? docs
-                        : docs.where((doc) {
-                            final data = doc.data() as Map<String, dynamic>;
-                            final surname = (data['Surname'] ?? '')
-                                .toString()
-                                .toLowerCase();
-                            final forename = (data['Forename'] ?? '')
-                                .toString()
-                                .toLowerCase();
-                            final query = _searchQuery.toLowerCase();
-                            return surname.contains(query) ||
-                                forename.contains(query);
-                          }).toList();
-                    final visibleDocs =
-                        filteredDocs.take(_loadedCount).toList();
-                    final showLoader = _loadedCount < filteredDocs.length;
-
-                    if (filteredDocs.isEmpty) {
-                      return const Center(
-                        child: Text(
-                          'No results found.',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey,
+                      final doc = visibleDocs[index];
+                      final data = doc.data() as Map<String, dynamic>;
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        child: ListTile(
+                          title: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                      child: Text(
+                                          '${(data['Surname']?.toString().trim().isNotEmpty ?? false) ? data['Surname'] : 'Unknown'}, ${data['Forename'] ?? ''}')),
+                                  if (data['Section'] != null)
+                                    Padding(
+                                      padding:
+                                          const EdgeInsets.only(left: 12.0),
+                                      child: Text('Section: ${data['Section']}',
+                                          style: const TextStyle(fontSize: 13)),
+                                    ),
+                                  if (data['New Plot'] != null)
+                                    Padding(
+                                      padding:
+                                          const EdgeInsets.only(left: 12.0),
+                                      child: Text('Plot: ${data['New Plot']}',
+                                          style: const TextStyle(fontSize: 13)),
+                                    ),
+                                ],
+                              ),
+                              if (data['Date of Death'] != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2.0),
+                                  child: Text(
+                                      'Date of Death: ${data['Date of Death']}',
+                                      style: const TextStyle(fontSize: 13)),
+                                ),
+                            ],
+                          ),
+                          subtitle: null,
+                          onTap: () => _showDetailsDialog(context, data),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit),
+                                tooltip: 'Edit',
+                                onPressed: () =>
+                                    _showEditSectionDialog(data, doc.id),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete),
+                                tooltip: 'Delete',
+                                onPressed: () => _confirmDeleteSection(doc.id),
+                              ),
+                            ],
                           ),
                         ),
                       );
-                    }
-
-                    return ListView.builder(
-                      key: const PageStorageKey('sections-list'),
-                      controller: _scrollController,
-                      cacheExtent: 500,
-                      itemCount: visibleDocs.length + (showLoader ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        // Only trigger loading more from the loading indicator at the end
-                        if (index == visibleDocs.length && showLoader) {
-                          if (!_isLoadingMore) {
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              _handleInfiniteScroll(filteredDocs.length);
-                            });
-                          }
-                          return const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: Center(child: CircularProgressIndicator()),
-                          );
-                        }
-                        final doc = visibleDocs[index];
-                        final data = doc.data() as Map<String, dynamic>;
-                        return Card(
-                          margin: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
-                          child: ListTile(
-                            title: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                        child: Text(
-                                            '${(data['Surname']?.toString().trim().isNotEmpty ?? false) ? data['Surname'] : 'Unknown'}, ${data['Forename'] ?? ''}')),
-                                    if (data['Section'] != null)
-                                      Padding(
-                                        padding:
-                                            const EdgeInsets.only(left: 12.0),
-                                        child: Text(
-                                            'Section: ${data['Section']}',
-                                            style:
-                                                const TextStyle(fontSize: 13)),
-                                      ),
-                                    if (data['New Plot'] != null)
-                                      Padding(
-                                        padding:
-                                            const EdgeInsets.only(left: 12.0),
-                                        child: Text('Plot: ${data['New Plot']}',
-                                            style:
-                                                const TextStyle(fontSize: 13)),
-                                      ),
-                                  ],
-                                ),
-                                if (data['Date of Death'] != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 2.0),
-                                    child: Text(
-                                        'Date of Death: ${data['Date of Death']}',
-                                        style: const TextStyle(fontSize: 13)),
-                                  ),
-                              ],
-                            ),
-                            subtitle: null,
-                            onTap: () => _showDetailsDialog(context, data),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.edit),
-                                  tooltip: 'Edit',
-                                  onPressed: () =>
-                                      _showEditSectionDialog(data, doc.id),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete),
-                                  tooltip: 'Delete',
-                                  onPressed: () =>
-                                      _confirmDeleteSection(doc.id),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
+                    },
+                  ),
+                );
+              },
+            ),
           ),
+        ],
+      ),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
           if (_showScrollToTop)
-            Positioned(
-              right: 16,
-              bottom: 16,
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
               child: FloatingActionButton(
                 mini: true,
                 onPressed: _scrollToTop,
                 child: const Icon(Icons.arrow_upward),
+                heroTag: 'scrollToTop',
               ),
             ),
+          FloatingActionButton(
+            onPressed: _showAddSectionDialog,
+            child: const Icon(Icons.add),
+            tooltip: 'Add New Grave',
+            heroTag: 'addGrave',
+          ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddSectionDialog,
-        child: const Icon(Icons.add),
-        tooltip: 'Add New Grave',
       ),
     );
   }
@@ -926,5 +932,22 @@ class _HomePageState extends State<HomePage> {
     await FirebaseAuth.instance.signOut();
     // Optionally, navigate to login or show a message
     Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+}
+
+class TestScrollPage extends StatelessWidget {
+  const TestScrollPage({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Test Scroll Page')),
+      body: ListView.builder(
+        itemCount: 100,
+        itemBuilder: (context, index) => ListTile(
+          title: Text('Item #$index'),
+        ),
+      ),
+    );
   }
 }

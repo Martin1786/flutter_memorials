@@ -1,1 +1,37 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"memorials-adc74","appId":"1:197148401217:android:23de2aef26d5c7a86a30c0","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"memorials-adc74","configurations":{"android":"1:197148401217:android:23de2aef26d5c7a86a30c0","web":"1:197148401217:web:23b17bab1b059fb86a30c0","windows":"1:197148401217:web:6699ca05d5a359366a30c0"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "memorials-adc74",
+          "appId": "1:197148401217:android:23de2aef26d5c7a86a30c0",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "memorials-adc74",
+          "configurations": {
+            "android": "1:197148401217:android:23de2aef26d5c7a86a30c0",
+            "web": "1:197148401217:web:23b17bab1b059fb86a30c0",
+            "windows": "1:197148401217:web:6699ca05d5a359366a30c0"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
