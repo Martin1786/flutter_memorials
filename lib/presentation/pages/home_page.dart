@@ -183,20 +183,24 @@ class _HomePageState extends State<HomePage> {
               fields.add(Row(
                 children: [
                   Icon(
-                    (data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty)
+                    (data['imageUrl'] != null &&
+                            data['imageUrl'].toString().isNotEmpty)
                         ? Icons.camera
                         : Icons.block,
-                    color: (data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty)
+                    color: (data['imageUrl'] != null &&
+                            data['imageUrl'].toString().isNotEmpty)
                         ? AppConstants.nameWithPhotoColor
                         : Colors.grey,
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    (data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty)
+                    (data['imageUrl'] != null &&
+                            data['imageUrl'].toString().isNotEmpty)
                         ? 'Photo available'
                         : 'No photo',
                     style: TextStyle(
-                      color: (data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty)
+                      color: (data['imageUrl'] != null &&
+                              data['imageUrl'].toString().isNotEmpty)
                           ? AppConstants.nameWithPhotoColor
                           : Colors.grey,
                     ),
@@ -708,19 +712,6 @@ class _HomePageState extends State<HomePage> {
                   Navigator.of(context).pop();
                 },
               ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.bug_report),
-                title: const Text('Test Scroll Page'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const TestScrollPage(),
-                    ),
-                  );
-                },
-              ),
             ],
           ),
         ),
@@ -1046,22 +1037,5 @@ class _HomePageState extends State<HomePage> {
     await FirebaseAuth.instance.signOut();
     // Optionally, navigate to login or show a message
     Navigator.of(context).popUntil((route) => route.isFirst);
-  }
-}
-
-class TestScrollPage extends StatelessWidget {
-  const TestScrollPage({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Test Scroll Page')),
-      body: ListView.builder(
-        itemCount: 100,
-        itemBuilder: (context, index) => ListTile(
-          title: Text('Item #$index'),
-        ),
-      ),
-    );
   }
 }
