@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 /// Application constants used throughout the memorials_flutter app.
 ///
 /// This file contains all the constant values that are used across
@@ -51,4 +53,7 @@ class AppConstants {
   static const String appName = "St. Peter's Memorials";
   static const String appVersion = '1.0.0';
   static const String appDescription = 'Churchyard Memorial Management App';
+
+  // Global UI colors
+  static const Color nameWithPhotoColor = Colors.green;
 }

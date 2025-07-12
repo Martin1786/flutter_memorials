@@ -53,6 +53,9 @@ class MemorialCardWidget extends StatelessWidget {
                 memorial.deceasedName ?? 'Unknown',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: memorial.hasPhoto
+                          ? AppConstants.nameWithPhotoColor
+                          : Theme.of(context).textTheme.titleLarge?.color,
                     ),
               ),
               if (memorial.dateOfDeath != null) ...[

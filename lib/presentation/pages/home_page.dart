@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/constants/app_constants.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
+import 'dart:io'; // Added for File
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -177,6 +178,84 @@ class _HomePageState extends State<HomePage> {
               Widget? abbreviationWidget;
               Widget? xyWidget;
               Widget? rowWidget;
+
+              // Camera icon row (show at the top, before other fields)
+              fields.add(Row(
+                children: [
+                  Icon(
+                    (data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty)
+                        ? Icons.camera
+                        : Icons.block,
+                    color: (data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty)
+                        ? AppConstants.nameWithPhotoColor
+                        : Colors.grey,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    (data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty)
+                        ? 'Photo available'
+                        : 'No photo',
+                    style: TextStyle(
+                      color: (data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty)
+                          ? AppConstants.nameWithPhotoColor
+                          : Colors.grey,
+                    ),
+                  ),
+                ],
+              ));
+              // Display image if imageUrl is present
+              if (data['imageUrl'] != null &&
+                  data['imageUrl'].toString().isNotEmpty) {
+                fields.add(Padding(
+                  padding: const EdgeInsets.only(bottom: 12.0),
+                  child: Column(
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => Dialog(
+                              backgroundColor: Colors.black.withOpacity(0.95),
+                              insetPadding: const EdgeInsets.all(16),
+                              child: Stack(
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Image.network(
+                                      data['imageUrl'],
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: IconButton(
+                                      icon: const Icon(Icons.close,
+                                          color: Colors.white, size: 32),
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                        child: Image.network(
+                          data['imageUrl'],
+                          height: 180,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Click to enlarge',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ));
+              }
               // Move Date of Death to the top if present
               if (data.containsKey('Date of Death') &&
                   data['Date of Death'] != null) {
@@ -224,7 +303,9 @@ class _HomePageState extends State<HomePage> {
                     entry.key == 'Old Plot' ||
                     entry.key == 'Date of Death' ||
                     entry.key == 'Forename' ||
-                    entry.key == 'Surname') {
+                    entry.key == 'Surname' ||
+                    entry.key == 'imageUrl' ||
+                    entry.key == 'Link') {
                   // Skip these fields (already handled or not needed)
                   continue;
                 }
@@ -848,8 +929,41 @@ class _HomePageState extends State<HomePage> {
                               Row(
                                 children: [
                                   Expanded(
-                                      child: Text(
-                                          '${(data['Surname']?.toString().trim().isNotEmpty ?? false) ? data['Surname'] : 'Unknown'}, ${data['Forename'] ?? ''}')),
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          '${(data['Surname']?.toString().trim().isNotEmpty ?? false) ? data['Surname'] : 'Unknown'}, ${data['Forename'] ?? ''}',
+                                          style: TextStyle(
+                                            color: (data['imageUrl'] != null &&
+                                                    data['imageUrl']
+                                                        .toString()
+                                                        .isNotEmpty)
+                                                ? AppConstants
+                                                    .nameWithPhotoColor
+                                                : Theme.of(context)
+                                                    .textTheme
+                                                    .titleLarge
+                                                    ?.color,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        if (data['imageUrl'] != null &&
+                                            data['imageUrl']
+                                                .toString()
+                                                .isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                                left: 4.0),
+                                            child: Icon(
+                                              Icons.photo,
+                                              color: AppConstants
+                                                  .nameWithPhotoColor,
+                                              size: 18,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
                                   if (data['Section'] != null)
                                     Padding(
                                       padding:

@@ -45,7 +45,7 @@ class Memorial {
   final String? deceasedName;
   final double? latitude;
   final double? longitude;
-  final String? photoPath;
+  final String? imageUrl;
   final List<String> additionalDetails;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -60,14 +60,14 @@ class Memorial {
     this.deceasedName,
     this.latitude,
     this.longitude,
-    this.photoPath,
+    this.imageUrl,
     this.additionalDetails = const [],
     required this.createdAt,
     required this.updatedAt,
   });
 
   String get displayName => ' A0$plotNumber - ${section.displayName}';
-  bool get hasPhoto => photoPath != null && photoPath!.isNotEmpty;
+  bool get hasPhoto => imageUrl != null && imageUrl!.isNotEmpty;
   bool get hasCoordinates => latitude != null && longitude != null;
   bool get hasInscription => inscription != null && inscription!.isNotEmpty;
 }

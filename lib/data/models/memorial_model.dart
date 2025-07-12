@@ -44,7 +44,7 @@ class MemorialModel extends HiveObject {
   final double? longitude;
 
   @HiveField(9)
-  final String? photoPath;
+  final String? imageUrl;
 
   @HiveField(10)
   final List<String> additionalDetails;
@@ -66,7 +66,7 @@ class MemorialModel extends HiveObject {
     this.deceasedName,
     this.latitude,
     this.longitude,
-    this.photoPath,
+    this.imageUrl,
     this.additionalDetails = const [],
     required this.createdAt,
     required this.updatedAt,
@@ -84,7 +84,7 @@ class MemorialModel extends HiveObject {
       deceasedName: memorial.deceasedName,
       latitude: memorial.latitude,
       longitude: memorial.longitude,
-      photoPath: memorial.photoPath,
+      imageUrl: memorial.imageUrl,
       additionalDetails: memorial.additionalDetails,
       createdAt: memorial.createdAt,
       updatedAt: memorial.updatedAt,
@@ -107,7 +107,7 @@ class MemorialModel extends HiveObject {
       deceasedName: deceasedName,
       latitude: latitude,
       longitude: longitude,
-      photoPath: photoPath,
+      imageUrl: imageUrl,
       additionalDetails: additionalDetails,
       createdAt: createdAt,
       updatedAt: updatedAt,
@@ -125,7 +125,7 @@ class MemorialModel extends HiveObject {
     String? deceasedName,
     double? latitude,
     double? longitude,
-    String? photoPath,
+    String? imageUrl,
     List<String>? additionalDetails,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -140,7 +140,7 @@ class MemorialModel extends HiveObject {
       deceasedName: deceasedName ?? this.deceasedName,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
-      photoPath: photoPath ?? this.photoPath,
+      imageUrl: imageUrl ?? this.imageUrl,
       additionalDetails: additionalDetails ?? this.additionalDetails,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -159,7 +159,7 @@ class MemorialModel extends HiveObject {
       'deceasedName': deceasedName,
       'latitude': latitude,
       'longitude': longitude,
-      'photoPath': photoPath,
+      'imageUrl': imageUrl,
       'additionalDetails': additionalDetails,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -180,7 +180,7 @@ class MemorialModel extends HiveObject {
       deceasedName: json['deceasedName'] as String?,
       latitude: json['latitude'] as double?,
       longitude: json['longitude'] as double?,
-      photoPath: json['photoPath'] as String?,
+      imageUrl: json['imageUrl'] as String?,
       additionalDetails: List<String>.from(json['additionalDetails'] ?? []),
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
