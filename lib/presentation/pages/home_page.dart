@@ -19,8 +19,12 @@ class _HomePageState extends State<HomePage> {
   final FocusNode _searchFocusNode = FocusNode();
 
   // Sorting state
-  String _sortBy = 'Surname';
-  bool _ascending = true;
+  int _sortColumnIndex = 0;
+  bool _sortAscending = true;
+
+  // Data state
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _allDocs = [];
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _filteredDocs = [];
 
   // Infinite scroll
   static const int _batchSize = 30;
@@ -29,9 +33,19 @@ class _HomePageState extends State<HomePage> {
   bool _showScrollToTop = false;
   bool _isLoadingMore = false;
 
+  // Maintain a sortedDocs list in state
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _sortedDocs = [];
+
+  // Add a vertical scroll controller for the DataTable
+  final ScrollController _verticalTableScrollController = ScrollController();
+  int _latestFilteredDocsLength =
+      0; // Track the latest filteredDocs length for infinite scroll
+  DateTime? _lastScrollTime; // For debounce
+
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(_onSearchChanged);
     _scrollController.addListener(() {
       if (_scrollController.offset > 300 && !_showScrollToTop) {
         setState(() => _showScrollToTop = true);
@@ -39,14 +53,108 @@ class _HomePageState extends State<HomePage> {
         setState(() => _showScrollToTop = false);
       }
     });
+    // Add listener for vertical table scroll to trigger infinite scroll
+    _verticalTableScrollController.addListener(() {
+      // Debounce: only trigger every 200ms
+      final now = DateTime.now();
+      if (_lastScrollTime != null &&
+          now.difference(_lastScrollTime!).inMilliseconds < 200) {
+        return;
+      }
+      _lastScrollTime = now;
+      if (_verticalTableScrollController.position.pixels >=
+          _verticalTableScrollController.position.maxScrollExtent - 100) {
+        // Near the bottom, load more
+        if (mounted) {
+          _handleInfiniteScroll(_latestFilteredDocsLength);
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
+    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
     _scrollController.dispose();
+    _verticalTableScrollController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text;
+      _filterAndSortDocs();
+    });
+  }
+
+  void _filterAndSortDocs() {
+    _filteredDocs = _searchQuery.isEmpty
+        ? List.from(_allDocs)
+        : _allDocs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final surname = (data['Surname'] ?? '').toString().toLowerCase();
+            final forename = (data['Forename'] ?? '').toString().toLowerCase();
+            final query = _searchQuery.toLowerCase();
+            return surname.contains(query) || forename.contains(query);
+          }).toList();
+    _sortDocs(_sortColumnIndex, _sortAscending);
+  }
+
+  void _sortDocs(int columnIndex, bool ascending) {
+    DateTime? parseDate(String s) {
+      try {
+        // Assuming format is dd/MM/yyyy
+        final parts = s.split('/');
+        if (parts.length == 3) {
+          return DateTime(
+            int.parse(parts[2]),
+            int.parse(parts[1]),
+            int.parse(parts[0]),
+          );
+        }
+      } catch (_) {}
+      return null;
+    }
+
+    _filteredDocs.sort((a, b) {
+      final aData = a.data() as Map<String, dynamic>?;
+      final bData = b.data() as Map<String, dynamic>?;
+      if (columnIndex == 0) {
+        // Name
+        final aSurname = (aData?['Surname'] ?? '').toString();
+        final aForename = (aData?['Forename'] ?? '').toString();
+        final bSurname = (bData?['Surname'] ?? '').toString();
+        final bForename = (bData?['Forename'] ?? '').toString();
+        final aName = (aSurname + aForename).toLowerCase();
+        final bName = (bSurname + bForename).toLowerCase();
+        return ascending ? aName.compareTo(bName) : bName.compareTo(aName);
+      } else if (columnIndex == 1) {
+        // Died
+        final aDateStr = (aData?['Date of Death'] ?? '').toString();
+        final bDateStr = (bData?['Date of Death'] ?? '').toString();
+        final aDate = parseDate(aDateStr);
+        final bDate = parseDate(bDateStr);
+        if (aDate != null && bDate != null) {
+          return ascending ? aDate.compareTo(bDate) : bDate.compareTo(aDate);
+        } else {
+          // Fallback to string comparison if parsing fails
+          return ascending
+              ? aDateStr.compareTo(bDateStr)
+              : bDateStr.compareTo(aDateStr);
+        }
+      }
+      return 0;
+    });
+  }
+
+  void _onSort(int columnIndex, bool ascending) {
+    setState(() {
+      _sortColumnIndex = columnIndex;
+      _sortAscending = ascending;
+      _sortDocs(columnIndex, ascending);
+    });
   }
 
   void _toggleSearch() {
@@ -80,11 +188,19 @@ class _HomePageState extends State<HomePage> {
     if (_loadedCount < totalCount) {
       _isLoadingMore = true;
       setState(() {
-        _loadedCount += _batchSize;
+        final newCount = _loadedCount + _batchSize;
+        _loadedCount = newCount > totalCount ? totalCount : newCount;
       });
       Future.delayed(const Duration(milliseconds: 200), () {
         _isLoadingMore = false;
       });
+    } else {
+      // Clamp: never allow _loadedCount to exceed totalCount
+      if (_loadedCount > totalCount) {
+        setState(() {
+          _loadedCount = totalCount;
+        });
+      }
     }
   }
 
@@ -518,6 +634,9 @@ class _HomePageState extends State<HomePage> {
                   'Date of Death': dateOfDeathController.text,
                 });
                 Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Grave entry added.')),
+                );
               }
             },
             child: const Text('Add'),
@@ -655,380 +774,116 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      drawer: Drawer(
-        child: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text('Sort By',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              ),
-              ListTile(
-                leading: const Icon(Icons.sort_by_alpha),
-                title: const Text('Surname'),
-                trailing: _sortBy == 'Surname' ? const Icon(Icons.check) : null,
-                onTap: () {
-                  setState(() {
-                    _sortBy = 'Surname';
-                  });
-                  Navigator.of(context).pop();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.grid_on),
-                title: const Text('Plot'),
-                trailing:
-                    _sortBy == 'New Plot' ? const Icon(Icons.check) : null,
-                onTap: () {
-                  setState(() {
-                    _sortBy = 'New Plot';
-                  });
-                  Navigator.of(context).pop();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.map),
-                title: const Text('Section'),
-                trailing: _sortBy == 'Section' ? const Icon(Icons.check) : null,
-                onTap: () {
-                  setState(() {
-                    _sortBy = 'Section';
-                  });
-                  Navigator.of(context).pop();
-                },
-              ),
-              const Divider(),
-              ListTile(
-                leading: Icon(
-                    _ascending ? Icons.arrow_upward : Icons.arrow_downward),
-                title: Text(_ascending ? 'Ascending' : 'Descending'),
-                onTap: () {
-                  setState(() {
-                    _ascending = !_ascending;
-                  });
-                  Navigator.of(context).pop();
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
       appBar: AppBar(
-        title: Text(AppConstants.appName),
+        title: const Text("Memorials"),
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
-            onPressed: _toggleSearch,
+            tooltip: 'Search',
+            onPressed: () {
+              setState(() {
+                _showSearch = !_showSearch;
+                if (!_showSearch) {
+                  _searchController.clear();
+                } else {
+                  _searchFocusNode.requestFocus();
+                }
+              });
+            },
+          ),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'add') {
+                _showAddSectionDialog();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem<String>(
+                value: 'add',
+                child: ListTile(
+                  leading: Icon(Icons.add),
+                  title: Text('Add New Grave'),
+                ),
+              ),
+            ],
           ),
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout, color: Colors.black),
+            tooltip: 'Sign Out',
             onPressed: () => _signOut(context),
           ),
         ],
       ),
-      body: Column(
-        children: [
-          if (_showSearch)
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: TextField(
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                decoration: const InputDecoration(
-                  hintText: 'Search by Surname or Forename',
-                  prefixIcon: Icon(Icons.search),
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value;
-                    _loadedCount = _batchSize; // Reset on new search
-                  });
-                },
-              ),
-            ),
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream:
-                  FirebaseFirestore.instance.collection('sections').snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                final docs = snapshot.data?.docs ?? [];
-                if (docs.isEmpty) {
-                  return const Center(child: Text('No sections found.'));
-                }
-                // Sort by Surname before display, putting missing/empty surnames ('Unknown') at the bottom
-                docs.sort((a, b) {
-                  final aMap = a.data() as Map<String, dynamic>;
-                  final bMap = b.data() as Map<String, dynamic>;
-                  String aValue = '';
-                  String bValue = '';
-                  int cmp = 0;
-                  if (_sortBy == 'Surname') {
-                    aValue =
-                        (aMap['Surname']?.toString().trim().isNotEmpty ?? false)
-                            ? aMap['Surname'].toString().toLowerCase()
-                            : 'zzzzzzzz';
-                    bValue =
-                        (bMap['Surname']?.toString().trim().isNotEmpty ?? false)
-                            ? bMap['Surname'].toString().toLowerCase()
-                            : 'zzzzzzzz';
-                    cmp = aValue.compareTo(bValue);
-                    if (cmp == 0) {
-                      // Secondary sort by Section
-                      final aSection =
-                          (aMap['Section'] ?? '').toString().toLowerCase();
-                      final bSection =
-                          (bMap['Section'] ?? '').toString().toLowerCase();
-                      cmp = aSection.compareTo(bSection);
-                      if (cmp == 0) {
-                        // Tertiary sort by Plot
-                        final aPlot =
-                            (aMap['New Plot'] ?? '').toString().toLowerCase();
-                        final bPlot =
-                            (bMap['New Plot'] ?? '').toString().toLowerCase();
-                        cmp = aPlot.compareTo(bPlot);
-                      }
-                    }
-                  } else if (_sortBy == 'New Plot') {
-                    aValue = (aMap['New Plot'] ?? '').toString().toLowerCase();
-                    bValue = (bMap['New Plot'] ?? '').toString().toLowerCase();
-                    cmp = aValue.compareTo(bValue);
-                    if (cmp == 0) {
-                      // Secondary sort by Surname
-                      final aSurname =
-                          (aMap['Surname']?.toString().trim().isNotEmpty ??
-                                  false)
-                              ? aMap['Surname'].toString().toLowerCase()
-                              : 'zzzzzzzz';
-                      final bSurname =
-                          (bMap['Surname']?.toString().trim().isNotEmpty ??
-                                  false)
-                              ? bMap['Surname'].toString().toLowerCase()
-                              : 'zzzzzzzz';
-                      cmp = aSurname.compareTo(bSurname);
-                      if (cmp == 0) {
-                        // Tertiary sort by Section
-                        final aSection =
-                            (aMap['Section'] ?? '').toString().toLowerCase();
-                        final bSection =
-                            (bMap['Section'] ?? '').toString().toLowerCase();
-                        cmp = aSection.compareTo(bSection);
-                      }
-                    }
-                  } else if (_sortBy == 'Section') {
-                    aValue = (aMap['Section'] ?? '').toString().toLowerCase();
-                    bValue = (bMap['Section'] ?? '').toString().toLowerCase();
-                    cmp = aValue.compareTo(bValue);
-                    if (cmp == 0) {
-                      // Secondary sort by Surname
-                      final aSurname =
-                          (aMap['Surname']?.toString().trim().isNotEmpty ??
-                                  false)
-                              ? aMap['Surname'].toString().toLowerCase()
-                              : 'zzzzzzzz';
-                      final bSurname =
-                          (bMap['Surname']?.toString().trim().isNotEmpty ??
-                                  false)
-                              ? bMap['Surname'].toString().toLowerCase()
-                              : 'zzzzzzzz';
-                      cmp = aSurname.compareTo(bSurname);
-                      if (cmp == 0) {
-                        // Tertiary sort by Plot
-                        final aPlot =
-                            (aMap['New Plot'] ?? '').toString().toLowerCase();
-                        final bPlot =
-                            (bMap['New Plot'] ?? '').toString().toLowerCase();
-                        cmp = aPlot.compareTo(bPlot);
-                      }
-                    }
-                  }
-                  return _ascending ? cmp : -cmp;
-                });
-                // Filter by search query
-                final filteredDocs = _searchQuery.isEmpty
-                    ? docs
-                    : docs.where((doc) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        final surname =
-                            (data['Surname'] ?? '').toString().toLowerCase();
-                        final forename =
-                            (data['Forename'] ?? '').toString().toLowerCase();
-                        final query = _searchQuery.toLowerCase();
-                        return surname.contains(query) ||
-                            forename.contains(query);
-                      }).toList();
-                final visibleDocs = filteredDocs.take(_loadedCount).toList();
-                final showLoader = _loadedCount < filteredDocs.length;
+      // Drawer removed as requested
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance.collection('sections').snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          // Assign _allDocs with correct type casting
+          _allDocs = (snapshot.data?.docs ?? [])
+              .cast<QueryDocumentSnapshot<Map<String, dynamic>>>();
+          _filterAndSortDocs();
 
-                if (filteredDocs.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'No results found.',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey,
+          return Column(
+            children: [
+              if (_showSearch)
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: TextField(
+                    controller: _searchController,
+                    focusNode: _searchFocusNode,
+                    decoration: InputDecoration(
+                      hintText: 'Search by name...',
+                      suffixIcon: IconButton(
+                        icon: Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                        },
                       ),
                     ),
-                  );
-                }
-
-                return ScrollConfiguration(
-                  behavior: const MaterialScrollBehavior().copyWith(
-                    dragDevices: {
-                      PointerDeviceKind.touch,
-                      PointerDeviceKind.mouse
-                    },
                   ),
-                  child: ListView.builder(
-                    key: const PageStorageKey('sections-list'),
-                    controller: _scrollController,
-                    cacheExtent: 500,
-                    physics: const BouncingScrollPhysics(),
-                    itemCount: visibleDocs.length + (showLoader ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      // Only trigger loading more from the loading indicator at the end
-                      if (index == visibleDocs.length && showLoader) {
-                        if (!_isLoadingMore) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            _handleInfiniteScroll(filteredDocs.length);
-                          });
-                        }
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 16),
-                          child: Center(child: CircularProgressIndicator()),
-                        );
-                      }
-                      final doc = visibleDocs[index];
-                      final data = doc.data() as Map<String, dynamic>;
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        child: ListTile(
-                          title: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Row(
-                                      children: [
-                                        Text(
-                                          '${(data['Surname']?.toString().trim().isNotEmpty ?? false) ? data['Surname'] : 'Unknown'}, ${data['Forename'] ?? ''}',
-                                          style: TextStyle(
-                                            color: (data['imageUrl'] != null &&
-                                                    data['imageUrl']
-                                                        .toString()
-                                                        .isNotEmpty)
-                                                ? AppConstants
-                                                    .nameWithPhotoColor
-                                                : Theme.of(context)
-                                                    .textTheme
-                                                    .titleLarge
-                                                    ?.color,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        if (data['imageUrl'] != null &&
-                                            data['imageUrl']
-                                                .toString()
-                                                .isNotEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                                left: 4.0),
-                                            child: Icon(
-                                              Icons.photo,
-                                              color: AppConstants
-                                                  .nameWithPhotoColor,
-                                              size: 18,
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  if (data['Section'] != null)
-                                    Padding(
-                                      padding:
-                                          const EdgeInsets.only(left: 12.0),
-                                      child: Text('Section: ${data['Section']}',
-                                          style: const TextStyle(fontSize: 13)),
-                                    ),
-                                  if (data['New Plot'] != null)
-                                    Padding(
-                                      padding:
-                                          const EdgeInsets.only(left: 12.0),
-                                      child: Text('Plot: ${data['New Plot']}',
-                                          style: const TextStyle(fontSize: 13)),
-                                    ),
-                                ],
-                              ),
-                              if (data['Date of Death'] != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 2.0),
-                                  child: Text(
-                                      'Date of Death: ${data['Date of Death']}',
-                                      style: const TextStyle(fontSize: 13)),
-                                ),
-                            ],
-                          ),
-                          subtitle: null,
-                          onTap: () => _showDetailsDialog(context, data),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit),
-                                tooltip: 'Edit',
-                                onPressed: () =>
-                                    _showEditSectionDialog(data, doc.id),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete),
-                                tooltip: 'Delete',
-                                onPressed: () => _confirmDeleteSection(doc.id),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
+                ),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: PaginatedDataTable(
+                    header: null,
+                    rowsPerPage: 20,
+                    availableRowsPerPage: const [10, 20, 30, 50, 100],
+                    sortColumnIndex: _sortColumnIndex,
+                    sortAscending: _sortAscending,
+                    columnSpacing: 12,
+                    columns: [
+                      DataColumn(
+                        label: const Text('Name'),
+                        onSort: (columnIndex, ascending) =>
+                            _onSort(columnIndex, ascending),
+                      ),
+                      DataColumn(
+                        label: const Text('Died'),
+                        onSort: (columnIndex, ascending) =>
+                            _onSort(columnIndex, ascending),
+                      ),
+                      const DataColumn(label: Text('')),
+                      const DataColumn(label: Text('')),
+                    ],
+                    source: _MemorialsDataTableSource(
+                      onShowDetails: (data) =>
+                          _showDetailsDialog(context, data),
+                      onEdit: (data, id) => _showEditSectionDialog(data, id),
+                      onDelete: (id) => _confirmDeleteSection(id),
+                      docs: _filteredDocs,
+                    ),
                   ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (_showScrollToTop)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: FloatingActionButton(
-                mini: true,
-                onPressed: _scrollToTop,
-                child: const Icon(Icons.arrow_upward),
-                heroTag: 'scrollToTop',
+                ),
               ),
-            ),
-          FloatingActionButton(
-            onPressed: _showAddSectionDialog,
-            child: const Icon(Icons.add),
-            tooltip: 'Add New Grave',
-            heroTag: 'addGrave',
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -1038,4 +893,71 @@ class _HomePageState extends State<HomePage> {
     // Optionally, navigate to login or show a message
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
+}
+
+class _MemorialsDataTableSource extends DataTableSource {
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+  final void Function(Map<String, dynamic>) onShowDetails;
+  final void Function(Map<String, dynamic>, String) onEdit;
+  final void Function(String) onDelete;
+
+  _MemorialsDataTableSource({
+    required this.docs,
+    required this.onShowDetails,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  DataRow? getRow(int index) {
+    if (index >= docs.length) return null;
+    final doc = docs[index];
+    final data = doc.data() as Map<String, dynamic>?;
+    final hasPhoto = data?['imageUrl'] != null &&
+        (data?['imageUrl']?.toString().isNotEmpty ?? false);
+    return DataRow(
+      cells: [
+        DataCell(
+          Text(
+              '${(data?['Surname'] ?? '').toString()}, ${(data?['Forename'] ?? '').toString()}'),
+          onTap: () => onShowDetails(data ?? {}),
+        ),
+        DataCell(
+          Row(
+            children: [
+              Text((data?['Date of Death'] ?? '').toString()),
+              if (hasPhoto)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4.0),
+                  child: Icon(Icons.photo,
+                      color: AppConstants.nameWithPhotoColor, size: 16),
+                ),
+            ],
+          ),
+          onTap: () => onShowDetails(data ?? {}),
+        ),
+        DataCell(
+          IconButton(
+            icon: const Icon(Icons.edit, size: 18),
+            tooltip: 'Edit',
+            onPressed: () => onEdit(data ?? {}, doc.id),
+          ),
+        ),
+        DataCell(
+          IconButton(
+            icon: const Icon(Icons.delete, size: 18),
+            tooltip: 'Delete',
+            onPressed: () => onDelete(doc.id),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  bool get isRowCountApproximate => false;
+  @override
+  int get rowCount => docs.length;
+  @override
+  int get selectedRowCount => 0;
 }
