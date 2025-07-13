@@ -45,7 +45,6 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(_onSearchChanged);
     _scrollController.addListener(() {
       if (_scrollController.offset > 300 && !_showScrollToTop) {
         setState(() => _showScrollToTop = true);
@@ -74,7 +73,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
-    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
     _scrollController.dispose();
@@ -82,7 +80,7 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  void _onSearchChanged() {
+  void _triggerSearch() {
     setState(() {
       _searchQuery = _searchController.text;
       _filterAndSortDocs();
@@ -879,14 +877,16 @@ class _HomePageState extends State<HomePage> {
             icon: const Icon(Icons.search),
             tooltip: 'Search',
             onPressed: () {
-              setState(() {
-                _showSearch = !_showSearch;
-                if (!_showSearch) {
-                  _searchController.clear();
-                } else {
-                  _searchFocusNode.requestFocus();
-                }
-              });
+              if (_showSearch) {
+                _triggerSearch();
+              } else {
+                setState(() {
+                  _showSearch = true;
+                  Future.delayed(Duration.zero, () {
+                    _searchFocusNode.requestFocus();
+                  });
+                });
+              }
             },
           ),
           PopupMenuButton<String>(
@@ -944,41 +944,53 @@ class _HomePageState extends State<HomePage> {
                         },
                       ),
                     ),
+                    onSubmitted: (_) => _triggerSearch(),
                   ),
                 ),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: PaginatedDataTable(
-                    header: null,
-                    rowsPerPage: 20,
-                    availableRowsPerPage: const [10, 20, 30, 50, 100],
-                    sortColumnIndex: _sortColumnIndex,
-                    sortAscending: _sortAscending,
-                    columnSpacing: 12,
-                    columns: [
-                      DataColumn(
-                        label: const Text('Name'),
-                        onSort: (columnIndex, ascending) =>
-                            _onSort(columnIndex, ascending),
+              if (_filteredDocs.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(32.0),
+                  child: Center(
+                    child: Text(
+                      'No results found.',
+                      style: TextStyle(fontSize: 18, color: Colors.grey),
+                    ),
+                  ),
+                )
+              else
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: PaginatedDataTable(
+                      header: null,
+                      rowsPerPage: 20,
+                      availableRowsPerPage: const [10, 20, 30, 50, 100],
+                      sortColumnIndex: _sortColumnIndex,
+                      sortAscending: _sortAscending,
+                      columnSpacing: 12,
+                      columns: [
+                        DataColumn(
+                          label: const Text('Name'),
+                          onSort: (columnIndex, ascending) =>
+                              _onSort(columnIndex, ascending),
+                        ),
+                        DataColumn(
+                          label: const Text('Died'),
+                          onSort: (columnIndex, ascending) =>
+                              _onSort(columnIndex, ascending),
+                        ),
+                        const DataColumn(label: Text('')),
+                        const DataColumn(label: Text('')),
+                      ],
+                      source: _MemorialsDataTableSource(
+                        onShowDetails: (data) =>
+                            _showDetailsDialog(context, data),
+                        onEdit: (data, id) => _showEditSectionDialog(data, id),
+                        onDelete: (id) => _confirmDeleteSection(id),
+                        docs: _filteredDocs,
                       ),
-                      DataColumn(
-                        label: const Text('Died'),
-                        onSort: (columnIndex, ascending) =>
-                            _onSort(columnIndex, ascending),
-                      ),
-                      const DataColumn(label: Text('')),
-                      const DataColumn(label: Text('')),
-                    ],
-                    source: _MemorialsDataTableSource(
-                      onShowDetails: (data) =>
-                          _showDetailsDialog(context, data),
-                      onEdit: (data, id) => _showEditSectionDialog(data, id),
-                      onDelete: (id) => _confirmDeleteSection(id),
-                      docs: _filteredDocs,
                     ),
                   ),
                 ),
-              ),
             ],
           );
         },
