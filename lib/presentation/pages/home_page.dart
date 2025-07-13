@@ -578,166 +578,264 @@ class _HomePageState extends State<HomePage> {
     final _formKey = GlobalKey<FormState>();
     final TextEditingController surnameController = TextEditingController();
     final TextEditingController forenameController = TextEditingController();
-    final TextEditingController sectionController = TextEditingController();
     final TextEditingController plotController = TextEditingController();
     final TextEditingController dateOfDeathController = TextEditingController();
+    String? sectionValue;
+    final List<String> sectionOptions = ['A', 'B', 'C', 'D', 'E', 'F'];
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add New Grave'),
-        content: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: surnameController,
-                  decoration: const InputDecoration(labelText: 'Surname'),
-                  validator: (value) =>
-                      value == null || value.isEmpty ? 'Required' : null,
-                ),
-                TextFormField(
-                  controller: forenameController,
-                  decoration: const InputDecoration(labelText: 'Forename'),
-                ),
-                TextFormField(
-                  controller: sectionController,
-                  decoration: const InputDecoration(labelText: 'Section'),
-                ),
-                TextFormField(
-                  controller: plotController,
-                  decoration: const InputDecoration(labelText: 'Plot'),
-                ),
-                TextFormField(
-                  controller: dateOfDeathController,
-                  decoration: const InputDecoration(labelText: 'Date of Death'),
-                ),
-              ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Add New Grave'),
+          content: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: surnameController,
+                    decoration: const InputDecoration(labelText: 'Surname'),
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Required'
+                        : null,
+                  ),
+                  TextFormField(
+                    controller: forenameController,
+                    decoration: const InputDecoration(labelText: 'Forename'),
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Required'
+                        : null,
+                  ),
+                  DropdownButtonFormField<String>(
+                    value: sectionValue,
+                    decoration: const InputDecoration(labelText: 'Section'),
+                    items: sectionOptions
+                        .map((s) => DropdownMenuItem(
+                              value: s,
+                              child: Text(s),
+                            ))
+                        .toList(),
+                    onChanged: (val) {
+                      setState(() {
+                        sectionValue = val;
+                      });
+                    },
+                    validator: (value) =>
+                        value == null || value.isEmpty ? 'Required' : null,
+                  ),
+                  TextFormField(
+                    controller: plotController,
+                    decoration: const InputDecoration(labelText: 'Plot'),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Required';
+                      }
+                      if (int.tryParse(value.trim()) == null) {
+                        return 'Plot must be a number';
+                      }
+                      return null;
+                    },
+                  ),
+                  TextFormField(
+                    controller: dateOfDeathController,
+                    decoration: const InputDecoration(
+                        labelText: 'Date of Death (dd/MM/yyyy)'),
+                    keyboardType: TextInputType.datetime,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Required';
+                      }
+                      final regex = RegExp(
+                          r'^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/\d{4}$');
+                      if (!regex.hasMatch(value.trim())) {
+                        return 'Enter date as dd/MM/yyyy';
+                      }
+                      try {
+                        final parts = value.trim().split('/');
+                        final date = DateTime(
+                          int.parse(parts[2]),
+                          int.parse(parts[1]),
+                          int.parse(parts[0]),
+                        );
+                        if (date.isAfter(DateTime.now())) {
+                          return 'Date must be in the past';
+                        }
+                      } catch (_) {
+                        return 'Invalid date';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (_formKey.currentState?.validate() ?? false) {
+                  await FirebaseFirestore.instance.collection('sections').add({
+                    'Surname': surnameController.text.trim(),
+                    'Forename': forenameController.text.trim(),
+                    'Section': sectionValue,
+                    'New Plot': plotController.text.trim(),
+                    'Date of Death': dateOfDeathController.text.trim(),
+                  });
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Grave entry added.')),
+                  );
+                }
+              },
+              child: const Text('Add'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (_formKey.currentState?.validate() ?? false) {
-                await FirebaseFirestore.instance.collection('sections').add({
-                  'Surname': surnameController.text,
-                  'Forename': forenameController.text,
-                  'Section': sectionController.text,
-                  'New Plot': plotController.text,
-                  'Date of Death': dateOfDeathController.text,
-                });
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Grave entry added.')),
-                );
-              }
-            },
-            child: const Text('Add'),
-          ),
-        ],
       ),
     );
   }
 
   void _showEditSectionDialog(Map<String, dynamic> data, String docId) {
     final _formKey = GlobalKey<FormState>();
-    // Create a controller for each field
-    final Map<String, TextEditingController> controllers = {
-      for (final entry in data.entries)
-        entry.key: TextEditingController(text: entry.value?.toString() ?? ''),
-    };
-
-    // If Abbreviation is a number, fetch the text version from Firestore
-    Future<void> _resolveAbbreviation() async {
-      final abbrValue = data['Abbreviation']?.toString();
-      if (abbrValue != null && int.tryParse(abbrValue) != null) {
-        final query = await FirebaseFirestore.instance
-            .collection('abbreviations')
-            .where('ID', isEqualTo: int.parse(abbrValue))
-            .limit(1)
-            .get();
-        if (query.docs.isNotEmpty) {
-          final abbrText =
-              query.docs.first.data()['Abbreviation']?.toString() ?? abbrValue;
-          controllers['Abbreviation']?.text = abbrText;
-        }
-      }
-    }
-
-    // Call the resolver if needed
-    if (controllers.containsKey('Abbreviation')) {
-      _resolveAbbreviation();
-    }
-
-    // Define the preferred order
-    final List<String> preferredOrder = [
-      'Surname',
-      'Forename',
-      'Date of Death',
-      'New Plot',
-      'Section',
-      'Row',
-      'Burial',
-    ];
-
-    // Build the ordered list of fields, excluding 'Old Plot' and 'ID'
-    final List<String> orderedFields = [
-      ...preferredOrder.where((key) => controllers.containsKey(key)),
-      ...controllers.keys.where((key) =>
-          !preferredOrder.contains(key) && key != 'Old Plot' && key != 'ID'),
-    ];
+    final TextEditingController surnameController =
+        TextEditingController(text: data['Surname']?.toString() ?? '');
+    final TextEditingController forenameController =
+        TextEditingController(text: data['Forename']?.toString() ?? '');
+    final TextEditingController plotController =
+        TextEditingController(text: data['New Plot']?.toString() ?? '');
+    final TextEditingController dateOfDeathController =
+        TextEditingController(text: data['Date of Death']?.toString() ?? '');
+    String? sectionValue = data['Section']?.toString();
+    final List<String> sectionOptions = ['A', 'B', 'C', 'D', 'E', 'F'];
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Grave Entry'),
-        content: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: orderedFields.map((key) {
-                final label = key == 'XY' ? 'Location' : key;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4.0),
-                  child: TextFormField(
-                    controller: controllers[key],
-                    decoration: InputDecoration(labelText: label),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Edit Grave Entry'),
+          content: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: surnameController,
+                    decoration: const InputDecoration(labelText: 'Surname'),
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Required'
+                        : null,
                   ),
-                );
-              }).toList(),
+                  TextFormField(
+                    controller: forenameController,
+                    decoration: const InputDecoration(labelText: 'Forename'),
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Required'
+                        : null,
+                  ),
+                  DropdownButtonFormField<String>(
+                    value: sectionOptions.contains(sectionValue)
+                        ? sectionValue
+                        : null,
+                    decoration: const InputDecoration(labelText: 'Section'),
+                    items: sectionOptions
+                        .map((s) => DropdownMenuItem(
+                              value: s,
+                              child: Text(s),
+                            ))
+                        .toList(),
+                    onChanged: (val) {
+                      setState(() {
+                        sectionValue = val;
+                      });
+                    },
+                    validator: (value) =>
+                        value == null || value.isEmpty ? 'Required' : null,
+                  ),
+                  TextFormField(
+                    controller: plotController,
+                    decoration: const InputDecoration(labelText: 'Plot'),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Required';
+                      }
+                      if (int.tryParse(value.trim()) == null) {
+                        return 'Plot must be a number';
+                      }
+                      return null;
+                    },
+                  ),
+                  TextFormField(
+                    controller: dateOfDeathController,
+                    decoration: const InputDecoration(
+                        labelText: 'Date of Death (dd/MM/yyyy)'),
+                    keyboardType: TextInputType.datetime,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Required';
+                      }
+                      final regex = RegExp(
+                          r'^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/\d{4}$');
+                      if (!regex.hasMatch(value.trim())) {
+                        return 'Enter date as dd/MM/yyyy';
+                      }
+                      try {
+                        final parts = value.trim().split('/');
+                        final date = DateTime(
+                          int.parse(parts[2]),
+                          int.parse(parts[1]),
+                          int.parse(parts[0]),
+                        );
+                        if (date.isAfter(DateTime.now())) {
+                          return 'Date must be in the past';
+                        }
+                      } catch (_) {
+                        return 'Invalid date';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (_formKey.currentState?.validate() ?? false) {
+                  final Map<String, dynamic> updatedData = {
+                    'Surname': surnameController.text.trim(),
+                    'Forename': forenameController.text.trim(),
+                    'Section': sectionValue,
+                    'New Plot': plotController.text.trim(),
+                    'Date of Death': dateOfDeathController.text.trim(),
+                  };
+                  await FirebaseFirestore.instance
+                      .collection('sections')
+                      .doc(docId)
+                      .update(updatedData);
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Grave entry updated.')),
+                  );
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (_formKey.currentState?.validate() ?? true) {
-                final Map<String, dynamic> updatedData = {
-                  for (final entry in controllers.entries)
-                    entry.key: entry.value.text,
-                };
-                await FirebaseFirestore.instance
-                    .collection('sections')
-                    .doc(docId)
-                    .update(updatedData);
-                Navigator.of(context).pop();
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
   }
