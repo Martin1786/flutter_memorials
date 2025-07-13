@@ -4,6 +4,7 @@ import '../../core/constants/app_constants.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
 import 'dart:io'; // Added for File
+import 'package:collection/collection.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -30,7 +31,6 @@ class _HomePageState extends State<HomePage> {
   static const int _batchSize = 30;
   int _loadedCount = 30;
   final ScrollController _scrollController = ScrollController();
-  bool _showScrollToTop = false;
   bool _isLoadingMore = false;
 
   // Maintain a sortedDocs list in state
@@ -42,16 +42,14 @@ class _HomePageState extends State<HomePage> {
       0; // Track the latest filteredDocs length for infinite scroll
   DateTime? _lastScrollTime; // For debounce
 
+  final GlobalKey<PaginatedDataTableState> _tableKey =
+      GlobalKey<PaginatedDataTableState>();
+  int _currentTablePage = 0;
+  int _rowsPerPage = PaginatedDataTable.defaultRowsPerPage;
+
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(() {
-      if (_scrollController.offset > 300 && !_showScrollToTop) {
-        setState(() => _showScrollToTop = true);
-      } else if (_scrollController.offset <= 300 && _showScrollToTop) {
-        setState(() => _showScrollToTop = false);
-      }
-    });
     // Add listener for vertical table scroll to trigger infinite scroll
     _verticalTableScrollController.addListener(() {
       // Debounce: only trigger every 200ms
@@ -88,7 +86,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _filterAndSortDocs() {
-    _filteredDocs = _searchQuery.isEmpty
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> filtered = _searchQuery
+            .isEmpty
         ? List.from(_allDocs)
         : _allDocs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
@@ -97,13 +96,9 @@ class _HomePageState extends State<HomePage> {
             final query = _searchQuery.toLowerCase();
             return surname.contains(query) || forename.contains(query);
           }).toList();
-    _sortDocs(_sortColumnIndex, _sortAscending);
-  }
-
-  void _sortDocs(int columnIndex, bool ascending) {
+    // Sort
     DateTime? parseDate(String s) {
       try {
-        // Assuming format is dd/MM/yyyy
         final parts = s.split('/');
         if (parts.length == 3) {
           return DateTime(
@@ -116,42 +111,42 @@ class _HomePageState extends State<HomePage> {
       return null;
     }
 
-    _filteredDocs.sort((a, b) {
+    filtered.sort((a, b) {
       final aData = a.data() as Map<String, dynamic>?;
       final bData = b.data() as Map<String, dynamic>?;
-      if (columnIndex == 0) {
-        // Name
+      if (_sortColumnIndex == 0) {
         final aSurname = (aData?['Surname'] ?? '').toString();
         final aForename = (aData?['Forename'] ?? '').toString();
         final bSurname = (bData?['Surname'] ?? '').toString();
         final bForename = (bData?['Forename'] ?? '').toString();
         final aName = (aSurname + aForename).toLowerCase();
         final bName = (bSurname + bForename).toLowerCase();
-        return ascending ? aName.compareTo(bName) : bName.compareTo(aName);
-      } else if (columnIndex == 1) {
-        // Died
+        return _sortAscending ? aName.compareTo(bName) : bName.compareTo(aName);
+      } else if (_sortColumnIndex == 1) {
         final aDateStr = (aData?['Date of Death'] ?? '').toString();
         final bDateStr = (bData?['Date of Death'] ?? '').toString();
         final aDate = parseDate(aDateStr);
         final bDate = parseDate(bDateStr);
         if (aDate != null && bDate != null) {
-          return ascending ? aDate.compareTo(bDate) : bDate.compareTo(aDate);
+          return _sortAscending
+              ? aDate.compareTo(bDate)
+              : bDate.compareTo(aDate);
         } else {
-          // Fallback to string comparison if parsing fails
-          return ascending
+          return _sortAscending
               ? aDateStr.compareTo(bDateStr)
               : bDateStr.compareTo(aDateStr);
         }
       }
       return 0;
     });
+    _filteredDocs = filtered;
   }
 
   void _onSort(int columnIndex, bool ascending) {
     setState(() {
       _sortColumnIndex = columnIndex;
       _sortAscending = ascending;
-      _sortDocs(columnIndex, ascending);
+      _filterAndSortDocs();
     });
   }
 
@@ -171,14 +166,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _scrollToTop() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      try {
-        _scrollController.animateTo(0,
-            duration: const Duration(milliseconds: 400), curve: Curves.easeOut);
-      } catch (_) {
-        _scrollController.jumpTo(0);
-      }
-    });
+    // Go to first page of the PaginatedDataTable
+    if (_tableKey.currentState != null) {
+      _tableKey.currentState!.pageTo(0);
+      setState(() {
+        _currentTablePage = 0;
+      });
+    }
   }
 
   void _handleInfiniteScroll(int totalCount) {
@@ -874,6 +868,11 @@ class _HomePageState extends State<HomePage> {
         title: const Text("Memorials"),
         actions: [
           IconButton(
+            icon: const Icon(Icons.home),
+            tooltip: 'Home',
+            onPressed: _scrollToTop,
+          ),
+          IconButton(
             icon: const Icon(Icons.search),
             tooltip: 'Search',
             onPressed: () {
@@ -924,12 +923,18 @@ class _HomePageState extends State<HomePage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return Center(child: Text('Error:  {snapshot.error}'));
           }
-          // Assign _allDocs with correct type casting
-          _allDocs = (snapshot.data?.docs ?? [])
-              .cast<QueryDocumentSnapshot<Map<String, dynamic>>>();
-          _filterAndSortDocs();
+          // Only update _allDocs and _filteredDocs if data actually changes, no setState in build
+          if (snapshot.hasData) {
+            final newDocs = (snapshot.data?.docs ?? [])
+                .cast<QueryDocumentSnapshot<Map<String, dynamic>>>();
+            final eq = const ListEquality().equals;
+            if (!eq(_allDocs, newDocs)) {
+              _allDocs = newDocs;
+              _filterAndSortDocs();
+            }
+          }
 
           return Column(
             children: [
@@ -963,36 +968,15 @@ class _HomePageState extends State<HomePage> {
                 )
               else
                 Expanded(
-                  child: SingleChildScrollView(
-                    child: PaginatedDataTable(
-                      header: null,
-                      rowsPerPage: 20,
-                      availableRowsPerPage: const [10, 20, 30, 50, 100],
-                      sortColumnIndex: _sortColumnIndex,
-                      sortAscending: _sortAscending,
-                      columnSpacing: 12,
-                      columns: [
-                        DataColumn(
-                          label: const Text('Name'),
-                          onSort: (columnIndex, ascending) =>
-                              _onSort(columnIndex, ascending),
-                        ),
-                        DataColumn(
-                          label: const Text('Died'),
-                          onSort: (columnIndex, ascending) =>
-                              _onSort(columnIndex, ascending),
-                        ),
-                        const DataColumn(label: Text('')),
-                        const DataColumn(label: Text('')),
-                      ],
-                      source: _MemorialsDataTableSource(
-                        onShowDetails: (data) =>
-                            _showDetailsDialog(context, data),
-                        onEdit: (data, id) => _showEditSectionDialog(data, id),
-                        onDelete: (id) => _confirmDeleteSection(id),
-                        docs: _filteredDocs,
-                      ),
-                    ),
+                  child: MemorialsTable(
+                    docs: _filteredDocs,
+                    sortColumnIndex: _sortColumnIndex,
+                    sortAscending: _sortAscending,
+                    onSort: (columnIndex, ascending) =>
+                        _onSort(columnIndex, ascending),
+                    onShowDetails: (data) => _showDetailsDialog(context, data),
+                    onEdit: (data, id) => _showEditSectionDialog(data, id),
+                    onDelete: (id) => _confirmDeleteSection(id),
                   ),
                 ),
             ],
@@ -1006,6 +990,102 @@ class _HomePageState extends State<HomePage> {
     await FirebaseAuth.instance.signOut();
     // Optionally, navigate to login or show a message
     Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+}
+
+class MemorialsTable extends StatefulWidget {
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+  final int sortColumnIndex;
+  final bool sortAscending;
+  final void Function(int, bool) onSort;
+  final void Function(Map<String, dynamic>) onShowDetails;
+  final void Function(Map<String, dynamic>, String) onEdit;
+  final void Function(String) onDelete;
+
+  const MemorialsTable({
+    Key? key,
+    required this.docs,
+    required this.sortColumnIndex,
+    required this.sortAscending,
+    required this.onSort,
+    required this.onShowDetails,
+    required this.onEdit,
+    required this.onDelete,
+  }) : super(key: key);
+
+  @override
+  State<MemorialsTable> createState() => _MemorialsTableState();
+}
+
+class _MemorialsTableState extends State<MemorialsTable> {
+  final GlobalKey<PaginatedDataTableState> _tableKey =
+      GlobalKey<PaginatedDataTableState>();
+  int _rowsPerPage = PaginatedDataTable.defaultRowsPerPage;
+  int _currentTablePage = 0;
+
+  void _goToFirstPage() {
+    if (_tableKey.currentState != null) {
+      _tableKey.currentState!.pageTo(0);
+      setState(() {
+        _currentTablePage = 0;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        PaginatedDataTable(
+          key: _tableKey,
+          onPageChanged: (rowIndex) {
+            final page = rowIndex ~/ _rowsPerPage;
+            setState(() {
+              _currentTablePage = page;
+            });
+          },
+          header: null,
+          rowsPerPage: _rowsPerPage,
+          onRowsPerPageChanged: (value) {
+            setState(() {
+              if (value != null) _rowsPerPage = value;
+            });
+          },
+          availableRowsPerPage: const [10, 20, 30, 50, 100],
+          sortColumnIndex: widget.sortColumnIndex,
+          sortAscending: widget.sortAscending,
+          columnSpacing: 12,
+          columns: [
+            DataColumn(
+              label: const Text('Name'),
+              onSort: widget.onSort,
+            ),
+            DataColumn(
+              label: const Text('Died'),
+              onSort: widget.onSort,
+            ),
+            const DataColumn(label: Text('')),
+            const DataColumn(label: Text('')),
+          ],
+          source: _MemorialsDataTableSource(
+            onShowDetails: widget.onShowDetails,
+            onEdit: widget.onEdit,
+            onDelete: widget.onDelete,
+            docs: widget.docs,
+          ),
+        ),
+        if (_currentTablePage > 0)
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: FloatingActionButton(
+              onPressed: _goToFirstPage,
+              tooltip: 'Go to first page',
+              child: const Icon(Icons.arrow_upward),
+            ),
+          ),
+      ],
+    );
   }
 }
 
