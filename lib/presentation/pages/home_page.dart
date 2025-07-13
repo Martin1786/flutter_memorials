@@ -893,6 +893,8 @@ class _HomePageState extends State<HomePage> {
             onSelected: (value) {
               if (value == 'add') {
                 _showAddSectionDialog();
+              } else if (value == 'signout') {
+                _signOut(context);
               }
             },
             itemBuilder: (context) => [
@@ -903,12 +905,14 @@ class _HomePageState extends State<HomePage> {
                   title: Text('Add New Grave'),
                 ),
               ),
+              const PopupMenuItem<String>(
+                value: 'signout',
+                child: ListTile(
+                  leading: Icon(Icons.logout),
+                  title: Text('Sign Out'),
+                ),
+              ),
             ],
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.black),
-            tooltip: 'Sign Out',
-            onPressed: () => _signOut(context),
           ),
         ],
       ),
