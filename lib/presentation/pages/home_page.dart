@@ -865,7 +865,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Memorials"),
+        title: Text(AppConstants.appName),
         actions: [
           IconButton(
             icon: const Icon(Icons.home),

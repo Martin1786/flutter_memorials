@@ -50,7 +50,7 @@ class AppConstants {
   static const String successPhotoUploaded = 'Photo uploaded successfully';
 
   // App information
-  static const String appName = "St. Peter's Memorials";
+  static const String appName = "St. John's Memorials";
   static const String appVersion = '1.0.0';
   static const String appDescription = 'Churchyard Memorial Management App';
 
