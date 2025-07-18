@@ -865,6 +865,24 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          padding: const EdgeInsets.all(8.0),
+          icon: Image.asset(
+            'assets/images/stjohn.jpg',
+            fit: BoxFit.contain,
+            width: 32,
+            height: 32,
+          ),
+          onPressed: () {
+            setState(() {
+              _showSearch = false;
+              _searchQuery = '';
+              _searchController.clear();
+              _filterAndSortDocs();
+              _scrollToTop();
+            });
+          },
+        ),
         title: Text(AppConstants.appName),
         actions: [
           IconButton(
