@@ -832,12 +832,15 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _confirmDeleteSection(String docId) {
+  void _confirmDeleteSection(Map<String, dynamic> data, String docId) {
+    final surname = data['Surname'] ?? '';
+    final forename = data['Forename'] ?? '';
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Entry'),
-        content: const Text('Are you sure you want to delete this entry?'),
+        content: Text(
+            'Are you sure you want to delete this entry?\n\nName: $surname, $forename'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -1008,7 +1011,7 @@ class _HomePageState extends State<HomePage> {
                         _onSort(columnIndex, ascending),
                     onShowDetails: (data) => _showDetailsDialog(context, data),
                     onEdit: (data, id) => _showEditSectionDialog(data, id),
-                    onDelete: (id) => _confirmDeleteSection(id),
+                    onDelete: (data, id) => _confirmDeleteSection(data, id),
                   ),
                 ),
             ],
@@ -1032,7 +1035,7 @@ class MemorialsTable extends StatefulWidget {
   final void Function(int, bool) onSort;
   final void Function(Map<String, dynamic>) onShowDetails;
   final void Function(Map<String, dynamic>, String) onEdit;
-  final void Function(String) onDelete;
+  final void Function(Map<String, dynamic>, String) onDelete;
 
   const MemorialsTable({
     Key? key,
@@ -1125,7 +1128,7 @@ class _MemorialsDataTableSource extends DataTableSource {
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
   final void Function(Map<String, dynamic>) onShowDetails;
   final void Function(Map<String, dynamic>, String) onEdit;
-  final void Function(String) onDelete;
+  final void Function(Map<String, dynamic>, String) onDelete;
 
   _MemorialsDataTableSource({
     required this.docs,
@@ -1173,7 +1176,7 @@ class _MemorialsDataTableSource extends DataTableSource {
           IconButton(
             icon: const Icon(Icons.delete, size: 18),
             tooltip: 'Delete',
-            onPressed: () => onDelete(doc.id),
+            onPressed: () => onDelete(data ?? {}, doc.id),
           ),
         ),
       ],
