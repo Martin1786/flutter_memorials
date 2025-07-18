@@ -870,7 +870,15 @@ class _HomePageState extends State<HomePage> {
           IconButton(
             icon: const Icon(Icons.home),
             tooltip: 'Home',
-            onPressed: _scrollToTop,
+            onPressed: () {
+              setState(() {
+                _showSearch = false;
+                _searchQuery = '';
+                _searchController.clear();
+                _filterAndSortDocs();
+                _scrollToTop();
+              });
+            },
           ),
           IconButton(
             icon: const Icon(Icons.search),
@@ -950,6 +958,12 @@ class _HomePageState extends State<HomePage> {
                         icon: Icon(Icons.clear),
                         onPressed: () {
                           _searchController.clear();
+                          setState(() {
+                            _searchQuery = '';
+                            _filterAndSortDocs();
+                            print(
+                                'Cleared search. _allDocs: ${_allDocs.length}, _filteredDocs: ${_filteredDocs.length}');
+                          });
                         },
                       ),
                     ),
